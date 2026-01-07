@@ -1,0 +1,14 @@
+[package]
+name = "xtask"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+xshell = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rustdoc-md = { workspace = true }
+rustdoc-types = { workspace = true }

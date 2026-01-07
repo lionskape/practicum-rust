@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/parser/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tools/comparer/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tools/converter/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/tools/xtask/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/xtask/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

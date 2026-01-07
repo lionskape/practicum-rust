@@ -1,0 +1,21 @@
+# Practicum Rust
+
+Документация проекта BlockChain Rust.
+
+## Структура проекта
+
+- **parser** - библиотека для парсинга различных форматов транзакций
+- **converter** - CLI инструмент для конвертации между форматами
+- **comparer** - CLI инструмент для сравнения файлов транзакций
+
+## Форматы транзакций
+
+Проект поддерживает три формата хранения транзакций:
+
+- [YPBankText](./transactions/YPBankTextFromat_ru.md) - текстовый формат с парами ключ-значение
+- [YPBankBin](./transactions/YPBankBinFormat_ru.md) - компактный бинарный формат
+- [YPBankCsv](./transactions/YPBankCsvFormat_ru.md) - CSV формат
+
+## Быстрый старт
+
+Для управления CI/CD, документацией используется крейт [XTask](./api/xtask.md).
