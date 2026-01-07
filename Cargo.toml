@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/*",
+    "tools/*",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.0.1"
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+clap = "4.5.54"
+thiserror = "2.0.17"
