@@ -1,0 +1,9 @@
+[package]
+name = "converter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+clap = { workspace = true }

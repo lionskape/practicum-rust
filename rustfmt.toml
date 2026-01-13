@@ -1,0 +1,28 @@
+# Должно совпадать с Cargo.toml (package.edition)
+edition = "2024"
+
+# Читаемость vs ширина
+max_width = 100
+
+# Меньше “лесенок” и лишних переносов там, где и так влезает
+use_small_heuristics = "Max"
+
+# Импорты: единый стиль + аккуратная группировка
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# Комментарии/доки
+format_code_in_doc_comments = true
+wrap_comments = true
+comment_width = 100
+
+# Более предсказуемые диффы для структур/вызовов
+fn_params_layout = "Tall"
+match_arm_leading_pipes = "Preserve"
+
+# Меньше визуального шума
+force_multiline_blocks = false
+
+# Включаем nightly-features для fmt
+unstable_features = true

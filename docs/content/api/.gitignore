@@ -1,0 +1,9 @@
+# Ignore everything in this directory
+*
+
+# Except _meta.ts and index
+!_meta.ts
+!index.mdx
+
+# And don't ignore this .gitignore file itself
+!.gitignore

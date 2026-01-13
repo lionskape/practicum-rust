@@ -1,0 +1,23 @@
+{
+  "name": "practicum-rust-docs",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postbuild": "pagefind --site .next/server/app --output-path out/_pagefind"
+  },
+  "dependencies": {
+    "next": "16.1.1",
+    "nextra": "4.6.1",
+    "nextra-theme-docs": "4.6.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.4",
+    "@types/react": "19.2.7",
+    "pagefind": "^1.4.0",
+    "typescript": "5.9.3"
+  }
+}
