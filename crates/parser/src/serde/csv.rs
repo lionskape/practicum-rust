@@ -280,9 +280,10 @@ pub fn from_str<T: for<'de> Deserialize<'de>>(s: &str) -> Result<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::*;
     use crate::transaction::{TransactionStatus, TransactionType};
-    use std::io::Cursor;
 
     fn sample_transaction() -> Transaction {
         Transaction {

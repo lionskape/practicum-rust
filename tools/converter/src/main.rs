@@ -13,9 +13,11 @@
 //! converter -i data.bin --input-format binary --output-format binary -o validated.bin
 //! ```
 
-use std::fs::File;
-use std::io::{Read, Write, stdin, stdout};
-use std::path::PathBuf;
+use std::{
+    fs::File,
+    io::{Read, Write, stdin, stdout},
+    path::PathBuf,
+};
 
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
@@ -162,8 +164,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Cursor;
+
+    use super::*;
 
     fn sample_text_data() -> &'static str {
         r#"TX_ID: 1234567890
