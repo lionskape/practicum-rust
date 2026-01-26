@@ -46,6 +46,8 @@ pub struct TransactionReader<R, F> {
     records_read: usize,
     /// Флаг достижения EOF или ошибки.
     finished: bool,
+    /// Флаг: был ли пропущен заголовок (для CSV).
+    header_skipped: bool,
 }
 
 impl<R: Read, F: SerdeFormat> TransactionReader<R, F> {
@@ -58,6 +60,7 @@ impl<R: Read, F: SerdeFormat> TransactionReader<R, F> {
             _format: PhantomData,
             records_read: 0,
             finished: false,
+            header_skipped: false,
         }
     }
 
@@ -85,6 +88,15 @@ impl<R: Read, F: SerdeFormat> Iterator for TransactionReader<R, F> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             return None;
+        }
+
+        // Skip header on first read (for CSV format)
+        if !self.header_skipped {
+            self.header_skipped = true;
+            if let Err(e) = F::skip_header(&mut self.inner) {
+                self.finished = true;
+                return Some(Err(e));
+            }
         }
 
         match F::read_one(&mut self.inner) {

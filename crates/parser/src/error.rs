@@ -79,6 +79,11 @@ pub enum ParseError {
     #[error("Invalid UTF-8 in description: {0}")]
     InvalidUtf8(#[from] std::string::FromUtf8Error),
 
+    // === Ошибки CSV формата ===
+    /// Ошибка парсинга или записи CSV.
+    #[error("CSV error: {0}")]
+    CsvError(String),
+
     // === Ошибки валидации ===
     /// Ошибка бизнес-валидации транзакции.
     #[error("Validation error: {0}")]
@@ -137,6 +142,12 @@ impl From<crate::serde::Error> for ParseError {
                 line: 0,
                 message: "trailing data after record".to_string(),
             },
+            SerdeErr::InvalidUtf8Slice(e) => Self::InvalidField {
+                field: "unknown".to_string(),
+                line: 0,
+                message: format!("invalid UTF-8: {e}"),
+            },
+            SerdeErr::Csv(e) => Self::CsvError(e.to_string()),
         }
     }
 }

@@ -28,6 +28,7 @@
 //! ```
 
 pub mod binary;
+pub mod csv;
 mod error;
 pub mod text;
 
@@ -45,9 +46,13 @@ pub struct Binary;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Text;
 
+/// Marker type for CSV format.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Csv;
+
 /// Trait for streaming serialization/deserialization of transactions.
 ///
-/// Implemented by marker types (`Binary`, `Text`) to provide format-specific
+/// Implemented by marker types (`Binary`, `Text`, `Csv`) to provide format-specific
 /// streaming operations.
 ///
 /// Note: `read_one` takes `BufRead` to support text format's line-by-line reading.
@@ -68,6 +73,14 @@ pub trait SerdeFormat {
     ///
     /// Default implementation is a no-op.
     fn write_header<W: Write>(_writer: &mut W) -> Result<()> {
+        Ok(())
+    }
+
+    /// Skips the header when reading, if the format has one.
+    ///
+    /// Called once before reading the first record.
+    /// Default implementation is a no-op.
+    fn skip_header<R: BufRead>(_reader: &mut R) -> Result<()> {
         Ok(())
     }
 }
@@ -94,6 +107,24 @@ impl SerdeFormat for Text {
     }
 }
 
+impl SerdeFormat for Csv {
+    fn read_one<R: BufRead>(reader: &mut R) -> Result<Option<Transaction>> {
+        csv::read_one(reader)
+    }
+
+    fn write_one<W: Write>(writer: &mut W, tx: &Transaction) -> Result<()> {
+        csv::write_one(writer, tx)
+    }
+
+    fn write_header<W: Write>(writer: &mut W) -> Result<()> {
+        csv::write_header(writer)
+    }
+
+    fn skip_header<R: BufRead>(reader: &mut R) -> Result<()> {
+        csv::skip_header(reader)
+    }
+}
+
 /// Format enum for runtime format selection.
 ///
 /// Use this when the format is determined at runtime (e.g., from file extension).
@@ -103,6 +134,8 @@ pub enum Format {
     Binary,
     /// Text KEY: VALUE format.
     Text,
+    /// CSV format with header row.
+    Csv,
 }
 
 impl Format {
@@ -122,6 +155,7 @@ impl Format {
         match ext.to_lowercase().as_str() {
             "txt" | "ypbank" | "text" => Some(Self::Text),
             "bin" | "ypbin" | "binary" => Some(Self::Binary),
+            "csv" => Some(Self::Csv),
             _ => None,
         }
     }

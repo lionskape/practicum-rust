@@ -83,7 +83,7 @@ pub mod prelude {
     // Re-export serde submodules for convenience
     pub use crate::{
         reader::TransactionReader,
-        serde::{Binary, Format, Result as SerdeResult, SerdeFormat, Text, binary, text},
+        serde::{Binary, Csv, Format, Result as SerdeResult, SerdeFormat, Text, binary, csv, text},
         transaction::{Transaction, TransactionStatus, TransactionType, ValidationError},
         writer::TransactionWriter,
     };

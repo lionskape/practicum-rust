@@ -1,6 +1,6 @@
 //! Unified error type for Serde-based serialization/deserialization.
 
-use std::{fmt, io, string::FromUtf8Error};
+use std::{fmt, io, str::Utf8Error, string::FromUtf8Error};
 
 use serde::{de, ser};
 
@@ -16,6 +16,12 @@ pub enum Error {
 
     /// Invalid UTF-8 in string data.
     InvalidUtf8(FromUtf8Error),
+
+    /// Invalid UTF-8 in string slice.
+    InvalidUtf8Slice(Utf8Error),
+
+    /// CSV parsing or writing error.
+    Csv(::csv::Error),
 
     /// Unexpected end of input.
     UnexpectedEof,
@@ -67,6 +73,8 @@ impl fmt::Display for Error {
             Self::Message(msg) => write!(f, "{msg}"),
             Self::Io(err) => write!(f, "I/O error: {err}"),
             Self::InvalidUtf8(err) => write!(f, "Invalid UTF-8: {err}"),
+            Self::InvalidUtf8Slice(err) => write!(f, "Invalid UTF-8: {err}"),
+            Self::Csv(err) => write!(f, "CSV error: {err}"),
             Self::UnexpectedEof => write!(f, "Unexpected end of input"),
             Self::InvalidMagic(magic) => {
                 write!(f, "Invalid magic bytes: {:?} (expected \"YPBN\")", magic)
@@ -92,6 +100,8 @@ impl std::error::Error for Error {
         match self {
             Self::Io(err) => Some(err),
             Self::InvalidUtf8(err) => Some(err),
+            Self::InvalidUtf8Slice(err) => Some(err),
+            Self::Csv(err) => Some(err),
             _ => None,
         }
     }
@@ -120,6 +130,18 @@ impl From<io::Error> for Error {
 impl From<FromUtf8Error> for Error {
     fn from(err: FromUtf8Error) -> Self {
         Self::InvalidUtf8(err)
+    }
+}
+
+impl From<Utf8Error> for Error {
+    fn from(err: Utf8Error) -> Self {
+        Self::InvalidUtf8Slice(err)
+    }
+}
+
+impl From<::csv::Error> for Error {
+    fn from(err: ::csv::Error) -> Self {
+        Self::Csv(err)
     }
 }
 
