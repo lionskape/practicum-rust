@@ -46,7 +46,10 @@ fn main() -> Result<()> {
         "clippy" => Ok(cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?),
         "test" => {
             ensure_nextest(&sh)?;
-            Ok(cmd!(sh, "cargo nextest run --workspace").run()?)
+            cmd!(sh, "cargo nextest run --workspace").run()?;
+            // Run doctests separately (nextest doesn't support them)
+            cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
+            Ok(())
         }
         "ci" => {
             ensure_nextest(&sh)?;
