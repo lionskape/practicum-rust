@@ -206,15 +206,18 @@ fn docs_ci(sh: &Shell) -> Result<()> {
 
     eprintln!("Запуск CI проверок для документации...");
 
-    // Запуск всех проверок
-    let fmt_result = run_ci_check(sh, "fmt", "cargo +nightly fmt --all -- --check")?;
-    let clippy_result =
-        run_ci_check(sh, "clippy", "cargo +nightly clippy --workspace -- -D warnings")?;
+    // Запуск всех проверок (--color=always для ANSI-цветов в документации)
+    let fmt_result = run_ci_check(sh, "fmt", "cargo +nightly fmt --all -- --check --color=always")?;
+    let clippy_result = run_ci_check(
+        sh,
+        "clippy",
+        "cargo +nightly clippy --workspace --color=always -- -D warnings",
+    )?;
 
     ensure_nextest(sh)?;
-    let tests_result = run_ci_check(sh, "tests", "cargo nextest run --workspace --color=never")?;
+    let tests_result = run_ci_check(sh, "tests", "cargo nextest run --workspace --color=always")?;
     let doctests_result =
-        run_ci_check(sh, "doctests", "cargo +nightly test --workspace --doc --color=never")?;
+        run_ci_check(sh, "doctests", "cargo +nightly test --workspace --doc --color=always")?;
 
     let timestamp = chrono_lite_now();
 
@@ -294,9 +297,9 @@ fn write_ci_result(
     content.push_str(&format!("> **Статус:** {status_emoji} {status_text}\n"));
     content.push_str(&format!("> **Дата:** {timestamp}\n\n"));
 
-    // Вывод команды
+    // Вывод команды (```ansi для поддержки ANSI-цветов)
     if !result.stderr.is_empty() || !result.stdout.is_empty() {
-        content.push_str("## Вывод\n\n```\n");
+        content.push_str("## Вывод\n\n```ansi\n");
         if !result.stderr.is_empty() {
             content.push_str(&result.stderr);
         }
