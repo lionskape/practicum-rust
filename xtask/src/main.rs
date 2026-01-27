@@ -231,7 +231,7 @@ fn docs_ci(sh: &Shell) -> Result<()> {
         .output()?
         .into();
 
-    let timestamp = chrono_lite_now();
+    let timestamp = now_iso();
 
     // Сохранение результатов в отдельные файлы
     write_ci_result(&ci_dir, "fmt", "Форматирование (rustfmt)", &fmt_result, &timestamp)?;
@@ -356,59 +356,14 @@ fn write_ci_index(
     Ok(())
 }
 
-/// Получить текущую дату и время в формате ISO 8601.
-///
-/// Простая реализация без внешних зависимостей.
-fn chrono_lite_now() -> String {
-    use std::time::SystemTime;
+/// Получить текущую дату и время в формате ISO 8601 для таймзоны +03:00.
+fn now_iso() -> String {
+    use jiff::tz::TimeZone;
 
-    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+    let tz = TimeZone::fixed(jiff::tz::offset(3));
+    let now = jiff::Zoned::now().with_time_zone(tz);
 
-    // Конвертация в компоненты даты (упрощённо, UTC)
-    let secs = now.as_secs();
-    let days = secs / 86400;
-    let time_secs = secs % 86400;
-
-    // Вычисление года, месяца, дня (упрощённый алгоритм для 2000-2099)
-    let mut year = 1970;
-    let mut remaining_days = days as i64;
-
-    while remaining_days >= days_in_year(year) {
-        remaining_days -= days_in_year(year);
-        year += 1;
-    }
-
-    let mut month = 1;
-    while remaining_days >= days_in_month(year, month) {
-        remaining_days -= days_in_month(year, month);
-        month += 1;
-    }
-
-    let day = remaining_days + 1;
-    let hours = time_secs / 3600;
-    let minutes = (time_secs % 3600) / 60;
-    let seconds = time_secs % 60;
-
-    format!("{year:04}-{month:02}-{day:02} {hours:02}:{minutes:02}:{seconds:02} UTC")
-}
-
-fn days_in_year(year: i64) -> i64 {
-    if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) { 366 } else { 365 }
-}
-
-fn days_in_month(year: i64, month: i64) -> i64 {
-    match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => {
-            if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
-                29
-            } else {
-                28
-            }
-        }
-        _ => 30,
-    }
+    now.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
 
 /// Удалить строки перед первым markdown заголовком ("# ").
