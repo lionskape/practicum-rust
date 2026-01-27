@@ -206,18 +206,30 @@ fn docs_ci(sh: &Shell) -> Result<()> {
 
     eprintln!("Запуск CI проверок для документации...");
 
-    // Запуск всех проверок (--color=always для ANSI-цветов в документации)
-    let fmt_result = run_ci_check(sh, "fmt", "cargo +nightly fmt --all -- --check --color=always")?;
-    let clippy_result = run_ci_check(
-        sh,
-        "clippy",
-        "cargo +nightly clippy --workspace --color=always -- -D warnings",
-    )?;
+    // Запуск всех проверок через cmd! макрос (--color=always для ANSI-цветов)
+    eprintln!("  Запуск fmt...");
+    let fmt_result = cmd!(sh, "cargo +nightly fmt --all -- --check --color=always")
+        .ignore_status()
+        .output()?
+        .into();
+
+    eprintln!("  Запуск clippy...");
+    let clippy_result = cmd!(sh, "cargo +nightly clippy --workspace --color=always -- -D warnings")
+        .ignore_status()
+        .output()?
+        .into();
 
     ensure_nextest(sh)?;
-    let tests_result = run_ci_check(sh, "tests", "cargo nextest run --workspace --color=always")?;
-    let doctests_result =
-        run_ci_check(sh, "doctests", "cargo +nightly test --workspace --doc --color=always")?;
+
+    eprintln!("  Запуск tests...");
+    let tests_result =
+        cmd!(sh, "cargo nextest run --workspace --color=always").ignore_status().output()?.into();
+
+    eprintln!("  Запуск doctests...");
+    let doctests_result = cmd!(sh, "cargo +nightly test --workspace --doc --color=always")
+        .ignore_status()
+        .output()?
+        .into();
 
     let timestamp = chrono_lite_now();
 
@@ -261,24 +273,14 @@ struct CiCheckResult {
     stderr: String,
 }
 
-/// Запустить CI проверку и вернуть результат.
-fn run_ci_check(_sh: &Shell, name: &str, command: &str) -> Result<CiCheckResult> {
-    eprintln!("  Запуск {name}...");
-
-    // Разбиваем команду на части
-    let parts: Vec<&str> = command.split_whitespace().collect();
-    let (program, args) = parts.split_first().context("пустая команда")?;
-
-    let output = std::process::Command::new(program)
-        .args(args)
-        .output()
-        .with_context(|| format!("не удалось запустить {command}"))?;
-
-    Ok(CiCheckResult {
-        success: output.status.success(),
-        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-    })
+impl From<std::process::Output> for CiCheckResult {
+    fn from(output: std::process::Output) -> Self {
+        Self {
+            success: output.status.success(),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        }
+    }
 }
 
 /// Записать результат CI проверки в markdown файл.
