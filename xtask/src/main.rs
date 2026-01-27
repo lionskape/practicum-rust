@@ -79,15 +79,19 @@ fn help() -> Result<()> {
 /// Собрать полную документацию.
 ///
 /// Эта команда выполняет следующие шаги:
-/// 1. Генерирует rustdoc JSON для всех крейтов воркспейса
-/// 2. Конвертирует JSON в Markdown через rustdoc-md
-/// 3. Устанавливает зависимости Nextra
-/// 4. Собирает статический сайт документации
+/// 1. Запускает тесты и сохраняет результаты в документации
+/// 2. Генерирует rustdoc JSON для всех крейтов воркспейса
+/// 3. Конвертирует JSON в Markdown через rustdoc-md
+/// 4. Устанавливает зависимости Nextra
+/// 5. Собирает статический сайт документации
 ///
 /// Итоговая документация будет доступна в `docs/out/`.
 fn docs_build() -> Result<()> {
     let sh = Shell::new()?;
     let docs_dir = project_root()?.join("docs");
+
+    // Запуск тестов и сохранение результатов
+    docs_tests(&sh)?;
 
     // Генерация rustdoc JSON -> Markdown
     docs_rustdoc()?;
@@ -184,6 +188,142 @@ fn docs_rustdoc() -> Result<()> {
 
     eprintln!("API документация сгенерирована в docs/content/api/");
     Ok(())
+}
+
+/// Запустить тесты и сохранить результаты в документации.
+///
+/// Эта функция:
+/// 1. Запускает nextest для unit-тестов
+/// 2. Запускает doctests
+/// 3. Форматирует результаты в Markdown
+/// 4. Сохраняет в `docs/content/tests.md`
+fn docs_tests(sh: &Shell) -> Result<()> {
+    let project = project_root()?;
+    let tests_path = project.join("docs/content/tests.md");
+
+    eprintln!("Запуск тестов для документации...");
+
+    ensure_nextest(sh)?;
+
+    // Запуск nextest и захват вывода
+    let nextest_output =
+        cmd!(sh, "cargo nextest run --workspace --color=never").ignore_status().output()?;
+
+    let nextest_stdout = String::from_utf8_lossy(&nextest_output.stdout);
+    let nextest_stderr = String::from_utf8_lossy(&nextest_output.stderr);
+    let nextest_success = nextest_output.status.success();
+
+    // Запуск doctests и захват вывода
+    let doctest_output =
+        cmd!(sh, "cargo +nightly test --workspace --doc --color=never").ignore_status().output()?;
+
+    let doctest_stdout = String::from_utf8_lossy(&doctest_output.stdout);
+    let doctest_stderr = String::from_utf8_lossy(&doctest_output.stderr);
+    let doctest_success = doctest_output.status.success();
+
+    // Определение общего статуса
+    let all_passed = nextest_success && doctest_success;
+    let status_emoji = if all_passed { "✅" } else { "❌" };
+    let status_text =
+        if all_passed { "Все тесты пройдены" } else { "Есть ошибки" };
+
+    // Получение временной метки
+    let timestamp = chrono_lite_now();
+
+    // Формирование Markdown
+    let mut content = String::new();
+    content.push_str("# Результаты тестов\n\n");
+    content.push_str(&format!("> **Статус:** {} {}\n", status_emoji, status_text));
+    content.push_str(&format!("> **Дата:** {}\n\n", timestamp));
+
+    // Unit тесты (nextest)
+    content.push_str("## Unit-тесты (nextest)\n\n");
+    if nextest_success {
+        content.push_str("✅ **Все тесты пройдены**\n\n");
+    } else {
+        content.push_str("❌ **Есть ошибки**\n\n");
+    }
+    content.push_str("<details>\n<summary>Подробный вывод</summary>\n\n```\n");
+    content.push_str(&nextest_stderr);
+    if !nextest_stdout.is_empty() {
+        content.push_str(&nextest_stdout);
+    }
+    content.push_str("```\n\n</details>\n\n");
+
+    // Doctests
+    content.push_str("## Doc-тесты\n\n");
+    if doctest_success {
+        content.push_str("✅ **Все doc-тесты пройдены**\n\n");
+    } else {
+        content.push_str("❌ **Есть ошибки**\n\n");
+    }
+    content.push_str("<details>\n<summary>Подробный вывод</summary>\n\n```\n");
+    content.push_str(&doctest_stderr);
+    if !doctest_stdout.is_empty() {
+        content.push_str(&doctest_stdout);
+    }
+    content.push_str("```\n\n</details>\n");
+
+    // Запись файла
+    fs::write(&tests_path, &content)?;
+    eprintln!("  -> tests.md сгенерирован ({status_text})");
+
+    Ok(())
+}
+
+/// Получить текущую дату и время в формате ISO 8601.
+///
+/// Простая реализация без внешних зависимостей.
+fn chrono_lite_now() -> String {
+    use std::time::SystemTime;
+
+    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
+
+    // Конвертация в компоненты даты (упрощённо, UTC)
+    let secs = now.as_secs();
+    let days = secs / 86400;
+    let time_secs = secs % 86400;
+
+    // Вычисление года, месяца, дня (упрощённый алгоритм для 2000-2099)
+    let mut year = 1970;
+    let mut remaining_days = days as i64;
+
+    while remaining_days >= days_in_year(year) {
+        remaining_days -= days_in_year(year);
+        year += 1;
+    }
+
+    let mut month = 1;
+    while remaining_days >= days_in_month(year, month) {
+        remaining_days -= days_in_month(year, month);
+        month += 1;
+    }
+
+    let day = remaining_days + 1;
+    let hours = time_secs / 3600;
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+
+    format!("{year:04}-{month:02}-{day:02} {hours:02}:{minutes:02}:{seconds:02} UTC")
+}
+
+fn days_in_year(year: i64) -> i64 {
+    if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) { 366 } else { 365 }
+}
+
+fn days_in_month(year: i64, month: i64) -> i64 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 30,
+    }
 }
 
 /// Удалить строки перед первым markdown заголовком ("# ").

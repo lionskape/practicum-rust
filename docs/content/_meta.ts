@@ -14,5 +14,9 @@ export default {
     api: {
         title: 'Справочник API',
         type: 'page'
+    },
+    tests: {
+        title: 'Результаты тестов',
+        type: 'page'
     }
 }

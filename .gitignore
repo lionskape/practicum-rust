@@ -22,3 +22,6 @@ target
 
 # cargo-docs-md
 .source_*
+
+# Auto-generated test results for docs
+docs/content/tests.md

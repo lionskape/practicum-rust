@@ -37,6 +37,9 @@ jobs:
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
