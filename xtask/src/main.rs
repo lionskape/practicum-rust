@@ -3,7 +3,7 @@
 //! Этот крейт предоставляет команды автоматизации сборки для воркспейса.
 //!
 //! См. [`HELP_TEXT`] для полного списка доступных команд и информации по использованию.
-use std::{fs, process::Command};
+use std::fs;
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -243,20 +243,14 @@ fn project_root() -> Result<std::path::PathBuf> {
 /// Эта функция проверяет, установлен ли cargo-nextest в системе.
 /// Если нет — автоматически устанавливает его через `cargo install`.
 fn ensure_nextest(sh: &Shell) -> Result<()> {
-    // Проверяем наличие nextest
-    let check = Command::new("cargo").args(["nextest", "--version"]).output();
-
-    match check {
-        Ok(output) if output.status.success() => {
-            // nextest уже установлен
-            Ok(())
-        }
-        _ => {
-            // Устанавливаем nextest
-            eprintln!("cargo-nextest не найден, устанавливаю...");
-            cmd!(sh, "cargo install cargo-nextest --locked").run()?;
-            eprintln!("cargo-nextest успешно установлен");
-            Ok(())
-        }
+    // Проверяем наличие nextest (ignore_status чтобы не паниковать если не найден)
+    if cmd!(sh, "cargo nextest --version").ignore_status().run().is_ok() {
+        return Ok(());
     }
+
+    // Устанавливаем nextest
+    eprintln!("cargo-nextest не найден, устанавливаю...");
+    cmd!(sh, "cargo install cargo-nextest --locked").run()?;
+    eprintln!("cargo-nextest успешно установлен");
+    Ok(())
 }
