@@ -1,0 +1,33 @@
+# nextest configuration
+# https://nexte.st/docs/configuration/
+
+[profile.default]
+# Retry failed tests up to 2 times (helps with flaky tests)
+retries = 2
+
+# Fail fast: stop on first failure for faster feedback locally
+fail-fast = true
+
+# Test timeout (per test)
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+# Status level for output
+status-level = "pass"
+
+# Show test output on failure
+failure-output = "immediate"
+
+[profile.ci]
+# CI profile: no retries, collect all failures
+retries = 0
+fail-fast = false
+
+# More verbose output in CI
+status-level = "all"
+failure-output = "immediate-final"
+
+# Longer timeout for CI (can be slower)
+slow-timeout = { period = "120s", terminate-after = 2 }
+
+# JUnit XML output for CI integrations
+junit = { path = "target/nextest/ci/junit.xml" }

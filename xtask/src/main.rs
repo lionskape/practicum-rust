@@ -3,7 +3,7 @@
 //! Этот крейт предоставляет команды автоматизации сборки для воркспейса.
 //!
 //! См. [`HELP_TEXT`] для полного списка доступных команд и информации по использованию.
-use std::fs;
+use std::{fs, process::Command};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -23,11 +23,14 @@ pub const HELP_TEXT: &str = r#"xtask
   fmt          Запустить rustfmt
   fmt-check    Проверить форматирование (CI)
   clippy       Запустить clippy (воркспейс)
-  test         Запустить тесты (воркспейс)
-  ci           Запустить fmt-check + clippy + test
+  test         Запустить тесты через nextest (воркспейс)
+  ci           Запустить fmt-check + clippy + test (профиль CI)
   docs         Собрать документацию (rustdoc JSON + Nextra)
   docs-dev     Запустить dev сервер Nextra
   docs-rustdoc Сгенерировать API документацию из rustdoc JSON
+
+Примечание:
+  cargo-nextest устанавливается автоматически при первом запуске тестов
 "#;
 
 fn main() -> Result<()> {
@@ -41,11 +44,17 @@ fn main() -> Result<()> {
         "fmt" => Ok(cmd!(sh, "cargo +nightly fmt --all").run()?),
         "fmt-check" => Ok(cmd!(sh, "cargo +nightly fmt --all -- --check").run()?),
         "clippy" => Ok(cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?),
-        "test" => Ok(cmd!(sh, "cargo test --workspace").run()?),
+        "test" => {
+            ensure_nextest(&sh)?;
+            Ok(cmd!(sh, "cargo nextest run --workspace").run()?)
+        }
         "ci" => {
+            ensure_nextest(&sh)?;
             cmd!(sh, "cargo +nightly fmt --all -- --check").run()?;
             cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?;
-            cmd!(sh, "cargo +nightly test --workspace").run()?;
+            cmd!(sh, "cargo nextest run --workspace --profile ci").run()?;
+            // Run doctests separately (nextest doesn't support them)
+            cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
             Ok(())
         }
         "docs" => docs_build(),
@@ -224,4 +233,27 @@ fn project_root() -> Result<std::path::PathBuf> {
         .parent()
         .context("CARGO_MANIFEST_DIR не имеет родительской директории")?
         .to_path_buf())
+}
+
+/// Проверить наличие cargo-nextest и установить при необходимости.
+///
+/// Эта функция проверяет, установлен ли cargo-nextest в системе.
+/// Если нет — автоматически устанавливает его через `cargo install`.
+fn ensure_nextest(sh: &Shell) -> Result<()> {
+    // Проверяем наличие nextest
+    let check = Command::new("cargo").args(["nextest", "--version"]).output();
+
+    match check {
+        Ok(output) if output.status.success() => {
+            // nextest уже установлен
+            Ok(())
+        }
+        _ => {
+            // Устанавливаем nextest
+            eprintln!("cargo-nextest не найден, устанавливаю...");
+            cmd!(sh, "cargo install cargo-nextest --locked").run()?;
+            eprintln!("cargo-nextest успешно установлен");
+            Ok(())
+        }
+    }
 }

@@ -2,6 +2,6 @@
 ci = "run -p xtask -- ci"
 xfmt = "run -p xtask -- fmt"
 xclippy = "run -p xtask -- clippy"
-test = "run -p xtask -- test"
+xtest = "run -p xtask -- test"
 docs = "run -p xtask -- docs"
 docs-dev = "run -p xtask -- docs-dev"
