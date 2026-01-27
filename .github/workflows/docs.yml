@@ -42,9 +42,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install rustdoc-md
-        run: cargo install rustdoc-md
-
       - name: Build documentation
         run: cargo run -p xtask -- docs
 
