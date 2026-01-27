@@ -243,8 +243,9 @@ fn project_root() -> Result<std::path::PathBuf> {
 /// Эта функция проверяет, установлен ли cargo-nextest в системе.
 /// Если нет — автоматически устанавливает его через `cargo install`.
 fn ensure_nextest(sh: &Shell) -> Result<()> {
-    // Проверяем наличие nextest (ignore_status чтобы не паниковать если не найден)
-    if cmd!(sh, "cargo nextest --version").ignore_status().run().is_ok() {
+    // Проверяем наличие nextest (quiet чтобы не выводить в консоль)
+    // Без ignore_status(): если команда завершится с ошибкой, run() вернёт Err
+    if cmd!(sh, "cargo nextest --version").quiet().run().is_ok() {
         return Ok(());
     }
 
