@@ -6,6 +6,8 @@
       <sourceFolder url="file://$MODULE_DIR$/tools/comparer/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tools/converter/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/xtask/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/e2e/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tests/e2e/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
