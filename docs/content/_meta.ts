@@ -12,11 +12,11 @@ export default {
         type: 'page'
     },
     api: {
-        title: 'Справочник API',
+        title: 'API',
         type: 'page'
     },
     ci: {
-        title: 'Результаты CI',
+        title: 'CI',
         type: 'page'
     }
 }
