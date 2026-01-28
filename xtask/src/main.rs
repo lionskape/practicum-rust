@@ -223,6 +223,10 @@ fn docs_ci(sh: &Shell) -> Result<()> {
 
     ensure_nextest(sh)?;
 
+    // Сборка бинарников для e2e тестов
+    eprintln!("  Сборка workspace...");
+    cmd!(sh, "cargo build --workspace --color=always").run()?;
+
     eprintln!("  Запуск tests...");
     let tests_result =
         cmd!(sh, "cargo nextest run --workspace --color=always").ignore_status().output()?.into();
