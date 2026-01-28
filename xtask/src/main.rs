@@ -55,6 +55,8 @@ fn main() -> Result<()> {
             ensure_nextest(&sh)?;
             cmd!(sh, "cargo +nightly fmt --all -- --check").run()?;
             cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?;
+            // Build workspace binaries before running e2e tests
+            cmd!(sh, "cargo build --workspace").run()?;
             cmd!(sh, "cargo nextest run --workspace --profile ci").run()?;
             // Run doctests separately (nextest doesn't support them)
             cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
