@@ -14,5 +14,9 @@ export default {
     api: {
         title: 'Справочник API',
         type: 'page'
+    },
+    ci: {
+        title: 'Результаты CI',
+        type: 'page'
     }
 }

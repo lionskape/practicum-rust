@@ -22,3 +22,6 @@ target
 
 # cargo-docs-md
 .source_*
+
+# Auto-generated CI results for docs
+docs/content/ci/

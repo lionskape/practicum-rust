@@ -79,15 +79,19 @@ fn help() -> Result<()> {
 /// Собрать полную документацию.
 ///
 /// Эта команда выполняет следующие шаги:
-/// 1. Генерирует rustdoc JSON для всех крейтов воркспейса
-/// 2. Конвертирует JSON в Markdown через rustdoc-md
-/// 3. Устанавливает зависимости Nextra
-/// 4. Собирает статический сайт документации
+/// 1. Запускает тесты и сохраняет результаты в документации
+/// 2. Генерирует rustdoc JSON для всех крейтов воркспейса
+/// 3. Конвертирует JSON в Markdown через rustdoc-md
+/// 4. Устанавливает зависимости Nextra
+/// 5. Собирает статический сайт документации
 ///
 /// Итоговая документация будет доступна в `docs/out/`.
 fn docs_build() -> Result<()> {
     let sh = Shell::new()?;
     let docs_dir = project_root()?.join("docs");
+
+    // Запуск CI проверок и сохранение результатов
+    docs_ci(&sh)?;
 
     // Генерация rustdoc JSON -> Markdown
     docs_rustdoc()?;
@@ -184,6 +188,182 @@ fn docs_rustdoc() -> Result<()> {
 
     eprintln!("API документация сгенерирована в docs/content/api/");
     Ok(())
+}
+
+/// Запустить CI проверки и сохранить результаты в документации.
+///
+/// Эта функция создаёт папку `docs/content/ci/` и сохраняет результаты:
+/// - `fmt.md` — проверка форматирования
+/// - `clippy.md` — линтер Clippy
+/// - `tests.md` — unit-тесты (nextest)
+/// - `doctests.md` — doc-тесты
+fn docs_ci(sh: &Shell) -> Result<()> {
+    let project = project_root()?;
+    let ci_dir = project.join("docs/content/ci");
+
+    // Создание директории ci
+    fs::create_dir_all(&ci_dir)?;
+
+    eprintln!("Запуск CI проверок для документации...");
+
+    // Запуск всех проверок через cmd! макрос (--color=always для ANSI-цветов)
+    eprintln!("  Запуск fmt...");
+    let fmt_result = cmd!(sh, "cargo +nightly fmt --all -- --check --color=always")
+        .ignore_status()
+        .output()?
+        .into();
+
+    eprintln!("  Запуск clippy...");
+    let clippy_result = cmd!(sh, "cargo +nightly clippy --workspace --color=always -- -D warnings")
+        .ignore_status()
+        .output()?
+        .into();
+
+    ensure_nextest(sh)?;
+
+    eprintln!("  Запуск tests...");
+    let tests_result =
+        cmd!(sh, "cargo nextest run --workspace --color=always").ignore_status().output()?.into();
+
+    eprintln!("  Запуск doctests...");
+    let doctests_result = cmd!(sh, "cargo +nightly test --workspace --doc --color=always")
+        .ignore_status()
+        .output()?
+        .into();
+
+    let timestamp = now_iso();
+
+    // Сохранение результатов в отдельные файлы
+    write_ci_result(&ci_dir, "fmt", "Форматирование (rustfmt)", &fmt_result, &timestamp)?;
+    write_ci_result(&ci_dir, "clippy", "Линтер Clippy", &clippy_result, &timestamp)?;
+    write_ci_result(&ci_dir, "tests", "Unit-тесты (nextest)", &tests_result, &timestamp)?;
+    write_ci_result(&ci_dir, "doctests", "Doc-тесты", &doctests_result, &timestamp)?;
+
+    // Создание индексной страницы CI
+    let all_passed = fmt_result.success
+        && clippy_result.success
+        && tests_result.success
+        && doctests_result.success;
+    write_ci_index(
+        &ci_dir,
+        &timestamp,
+        all_passed,
+        &[
+            ("fmt", "Форматирование", fmt_result.success),
+            ("clippy", "Clippy", clippy_result.success),
+            ("tests", "Unit-тесты", tests_result.success),
+            ("doctests", "Doc-тесты", doctests_result.success),
+        ],
+    )?;
+
+    let status = if all_passed {
+        "✅ Все проверки пройдены"
+    } else {
+        "❌ Есть ошибки"
+    };
+    eprintln!("  -> CI результаты сгенерированы ({status})");
+
+    Ok(())
+}
+
+/// Результат CI проверки.
+struct CiCheckResult {
+    success: bool,
+    stdout: String,
+    stderr: String,
+}
+
+impl From<std::process::Output> for CiCheckResult {
+    fn from(output: std::process::Output) -> Self {
+        Self {
+            success: output.status.success(),
+            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        }
+    }
+}
+
+/// Записать результат CI проверки в markdown файл.
+fn write_ci_result(
+    ci_dir: &std::path::Path,
+    filename: &str,
+    title: &str,
+    result: &CiCheckResult,
+    timestamp: &str,
+) -> Result<()> {
+    let status_emoji = if result.success { "✅" } else { "❌" };
+    let status_text = if result.success { "Успешно" } else { "Ошибки" };
+
+    let mut content = String::new();
+    content.push_str(&format!("# {title}\n\n"));
+    content.push_str(&format!("> **Статус:** {status_emoji} {status_text}\n"));
+    content.push_str(&format!("> **Дата:** {timestamp}\n\n"));
+
+    // Вывод команды (```ansi для поддержки ANSI-цветов)
+    if !result.stderr.is_empty() || !result.stdout.is_empty() {
+        content.push_str("## Вывод\n\n```ansi\n");
+        if !result.stderr.is_empty() {
+            content.push_str(&result.stderr);
+        }
+        if !result.stdout.is_empty() {
+            content.push_str(&result.stdout);
+        }
+        content.push_str("```\n");
+    } else {
+        content.push_str("*Нет вывода*\n");
+    }
+
+    let path = ci_dir.join(format!("{filename}.md"));
+    fs::write(&path, content)?;
+
+    let status = if result.success { "✓" } else { "✗" };
+    eprintln!("    [{status}] {filename}.md");
+
+    Ok(())
+}
+
+/// Записать индексную страницу CI.
+fn write_ci_index(
+    ci_dir: &std::path::Path,
+    timestamp: &str,
+    all_passed: bool,
+    checks: &[(&str, &str, bool)],
+) -> Result<()> {
+    let status_emoji = if all_passed { "✅" } else { "❌" };
+    let status_text = if all_passed {
+        "Все проверки пройдены"
+    } else {
+        "Есть ошибки"
+    };
+
+    let mut content = String::new();
+    content.push_str("# Результаты CI\n\n");
+    content.push_str(&format!("> **Статус:** {status_emoji} {status_text}\n"));
+    content.push_str(&format!("> **Дата:** {timestamp}\n\n"));
+
+    content.push_str("## Проверки\n\n");
+    content.push_str("| Проверка | Статус |\n");
+    content.push_str("|----------|--------|\n");
+
+    for (filename, title, success) in checks {
+        let emoji = if *success { "✅" } else { "❌" };
+        content.push_str(&format!("| [{title}](./{filename}) | {emoji} |\n"));
+    }
+
+    let path = ci_dir.join("index.md");
+    fs::write(&path, content)?;
+
+    Ok(())
+}
+
+/// Получить текущую дату и время в формате ISO 8601 для таймзоны +03:00.
+fn now_iso() -> String {
+    use jiff::tz::TimeZone;
+
+    let tz = TimeZone::fixed(jiff::tz::offset(3));
+    let now = jiff::Zoned::now().with_time_zone(tz);
+
+    now.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string()
 }
 
 /// Удалить строки перед первым markdown заголовком ("# ").
