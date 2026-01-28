@@ -23,7 +23,9 @@ pub const HELP_TEXT: &str = r#"xtask
   fmt          Запустить rustfmt
   fmt-check    Проверить форматирование (CI)
   clippy       Запустить clippy (воркспейс)
-  test         Запустить тесты через nextest (воркспейс)
+  test         Запустить все тесты (unit + e2e + doctests)
+  test-unit    Запустить только unit-тесты (без e2e)
+  test-e2e     Запустить только e2e-тесты (собирает бинарники)
   ci           Запустить fmt-check + clippy + test (профиль CI)
   docs         Собрать документацию (rustdoc JSON + Nextra)
   docs-dev     Запустить dev сервер Nextra
@@ -45,21 +47,19 @@ fn main() -> Result<()> {
         "fmt-check" => Ok(cmd!(sh, "cargo +nightly fmt --all -- --check").run()?),
         "clippy" => Ok(cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?),
         "test" => {
-            ensure_nextest(&sh)?;
-            cmd!(sh, "cargo nextest run --workspace").run()?;
-            // Run doctests separately (nextest doesn't support them)
-            cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
+            test_unit(&sh)?;
+            test_e2e(&sh)?;
+            test_doc(&sh)?;
             Ok(())
         }
+        "test-unit" => test_unit(&sh),
+        "test-e2e" => test_e2e(&sh),
         "ci" => {
-            ensure_nextest(&sh)?;
             cmd!(sh, "cargo +nightly fmt --all -- --check").run()?;
             cmd!(sh, "cargo +nightly clippy --workspace -- -D warnings").run()?;
-            // Build workspace binaries before running e2e tests
-            cmd!(sh, "cargo build --workspace").run()?;
-            cmd!(sh, "cargo nextest run --workspace --profile ci").run()?;
-            // Run doctests separately (nextest doesn't support them)
-            cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
+            test_unit(&sh)?;
+            test_e2e(&sh)?;
+            test_doc(&sh)?;
             Ok(())
         }
         "docs" => docs_build(),
@@ -75,6 +75,37 @@ fn main() -> Result<()> {
 /// команды и их описания.
 fn help() -> Result<()> {
     println!("{}", HELP_TEXT);
+    Ok(())
+}
+
+/// Запустить unit-тесты (без e2e).
+///
+/// Исключает крейт `e2e-tests` из запуска.
+fn test_unit(sh: &Shell) -> Result<()> {
+    ensure_nextest(sh)?;
+    eprintln!("Запуск unit-тестов...");
+    cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests").run()?;
+    Ok(())
+}
+
+/// Запустить e2e-тесты.
+///
+/// Сначала собирает бинарники воркспейса, затем запускает тесты из `e2e-tests`.
+fn test_e2e(sh: &Shell) -> Result<()> {
+    ensure_nextest(sh)?;
+    eprintln!("Сборка бинарников для e2e-тестов...");
+    cmd!(sh, "cargo build --workspace").run()?;
+    eprintln!("Запуск e2e-тестов...");
+    cmd!(sh, "cargo nextest run -p e2e-tests").run()?;
+    Ok(())
+}
+
+/// Запустить doc-тесты.
+///
+/// nextest не поддерживает doc-тесты, поэтому используем стандартный cargo test.
+fn test_doc(sh: &Shell) -> Result<()> {
+    eprintln!("Запуск doc-тестов...");
+    cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
     Ok(())
 }
 
@@ -197,7 +228,8 @@ fn docs_rustdoc() -> Result<()> {
 /// Эта функция создаёт папку `docs/content/ci/` и сохраняет результаты:
 /// - `fmt.md` — проверка форматирования
 /// - `clippy.md` — линтер Clippy
-/// - `tests.md` — unit-тесты (nextest)
+/// - `unit-tests.md` — unit-тесты (без e2e)
+/// - `e2e-tests.md` — e2e-тесты
 /// - `doctests.md` — doc-тесты
 fn docs_ci(sh: &Shell) -> Result<()> {
     let project = project_root()?;
@@ -223,13 +255,22 @@ fn docs_ci(sh: &Shell) -> Result<()> {
 
     ensure_nextest(sh)?;
 
+    // Unit-тесты (без e2e)
+    eprintln!("  Запуск unit-тестов...");
+    let unit_tests_result =
+        cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests --color=always")
+            .ignore_status()
+            .output()?
+            .into();
+
     // Сборка бинарников для e2e тестов
-    eprintln!("  Сборка workspace...");
+    eprintln!("  Сборка бинарников...");
     cmd!(sh, "cargo build --workspace --color=always").run()?;
 
-    eprintln!("  Запуск tests...");
-    let tests_result =
-        cmd!(sh, "cargo nextest run --workspace --color=always").ignore_status().output()?.into();
+    // E2E-тесты
+    eprintln!("  Запуск e2e-тестов...");
+    let e2e_tests_result =
+        cmd!(sh, "cargo nextest run -p e2e-tests --color=always").ignore_status().output()?.into();
 
     eprintln!("  Запуск doctests...");
     let doctests_result = cmd!(sh, "cargo +nightly test --workspace --doc --color=always")
@@ -242,13 +283,15 @@ fn docs_ci(sh: &Shell) -> Result<()> {
     // Сохранение результатов в отдельные файлы
     write_ci_result(&ci_dir, "fmt", "Форматирование (rustfmt)", &fmt_result, &timestamp)?;
     write_ci_result(&ci_dir, "clippy", "Линтер Clippy", &clippy_result, &timestamp)?;
-    write_ci_result(&ci_dir, "tests", "Unit-тесты (nextest)", &tests_result, &timestamp)?;
+    write_ci_result(&ci_dir, "unit-tests", "Unit-тесты (nextest)", &unit_tests_result, &timestamp)?;
+    write_ci_result(&ci_dir, "e2e-tests", "E2E-тесты (nextest)", &e2e_tests_result, &timestamp)?;
     write_ci_result(&ci_dir, "doctests", "Doc-тесты", &doctests_result, &timestamp)?;
 
     // Создание индексной страницы CI
     let all_passed = fmt_result.success
         && clippy_result.success
-        && tests_result.success
+        && unit_tests_result.success
+        && e2e_tests_result.success
         && doctests_result.success;
     write_ci_index(
         &ci_dir,
@@ -257,7 +300,8 @@ fn docs_ci(sh: &Shell) -> Result<()> {
         &[
             ("fmt", "Форматирование", fmt_result.success),
             ("clippy", "Clippy", clippy_result.success),
-            ("tests", "Unit-тесты", tests_result.success),
+            ("unit-tests", "Unit-тесты", unit_tests_result.success),
+            ("e2e-tests", "E2E-тесты", e2e_tests_result.success),
             ("doctests", "Doc-тесты", doctests_result.success),
         ],
     )?;
@@ -353,7 +397,7 @@ fn write_ci_index(
 
     for (filename, title, success) in checks {
         let emoji = if *success { "✅" } else { "❌" };
-        content.push_str(&format!("| [{title}](./{filename}) | {emoji} |\n"));
+        content.push_str(&format!("| [{title}](./ci/{filename}) | {emoji} |\n"));
     }
 
     let path = ci_dir.join("index.md");
