@@ -8,6 +8,10 @@
       <sourceFolder url="file://$MODULE_DIR$/xtask/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tests/e2e/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/quote-client/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/quote-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/quotes-reader/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/quotes-stream/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
