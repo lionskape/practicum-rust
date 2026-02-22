@@ -1,51 +1,67 @@
-//! Common types and protocol constants shared between quote-server and quote-client.
+//! Общие типы и константы протокола, разделяемые между quote-server и quote-client.
 
 use serde::{Deserialize, Serialize};
 
 // ──────────────────────────────────────────────
-// Protocol constants
+// Константы протокола
 // ──────────────────────────────────────────────
 
-/// Command prefix for the streaming request.
+/// Префикс команды подписки на поток котировок.
 pub const CMD_STREAM: &str = "STREAM";
 
-/// Response prefix for a successful handshake.
+/// Префикс ответа при успешном рукопожатии.
 pub const RESP_OK: &str = "OK";
 
-/// Response prefix for an error during handshake.
+/// Префикс ответа при ошибке рукопожатия.
 pub const RESP_ERR: &str = "ERR";
 
-/// PING payload sent from client to server over UDP.
+/// PING-пакет, отправляемый клиентом серверу по UDP.
 pub const PING_PAYLOAD: &[u8; 4] = b"PING";
 
-/// How often the client must send PING (seconds).
+/// Интервал отправки PING клиентом (секунды).
 pub const PING_INTERVAL_SECS: u64 = 2;
 
-/// Server drops the client after this many seconds without a PING.
+/// Сервер отключает клиента после стольких секунд без PING.
 pub const PING_TIMEOUT_SECS: u64 = 5;
 
-/// Interval between quote generation batches (milliseconds).
+/// Интервал между генерациями пакетов котировок (миллисекунды).
 pub const GENERATION_INTERVAL_MS: u64 = 100;
 
+/// Максимальный размер буфера одной UDP-датаграммы (байты).
+pub const UDP_BUF_SIZE: usize = 4096;
+
 // ──────────────────────────────────────────────
-// Data types
+// Типы данных
 // ──────────────────────────────────────────────
 
-/// A single stock quote sent over the wire as JSON via UDP.
+/// Одна котировка акции, передаваемая по сети в формате JSON через UDP.
+///
+/// # Примеры
+///
+/// ```
+/// use quote_common::StockQuote;
+///
+/// let quote =
+///     StockQuote { ticker: "AAPL".into(), price: 150.25, volume: 1200, timestamp: 1708617600000 };
+///
+/// let json = serde_json::to_string(&quote).unwrap();
+/// let parsed: StockQuote = serde_json::from_str(&json).unwrap();
+/// assert_eq!(parsed, quote);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StockQuote {
     pub ticker: String,
     pub price: f64,
     pub volume: u64,
-    /// Unix timestamp in milliseconds.
+    /// Временна́я метка Unix в миллисекундах.
     pub timestamp: u64,
 }
 
 // ──────────────────────────────────────────────
-// Errors
+// Ошибки
 // ──────────────────────────────────────────────
 
-/// Protocol-level errors that can occur during handshake or data exchange.
+/// Ошибки уровня протокола, возникающие при рукопожатии или обмене данными.
 #[derive(Debug, thiserror::Error)]
 pub enum ProtocolError {
     #[error("invalid command format: {0}")]
