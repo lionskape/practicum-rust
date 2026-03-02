@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 
 pub mod client_sender;
 pub mod generator;
+pub mod ping_registry;
 pub mod protocol;
 
 /// Все известные тикеры, встроенные из `tickers.txt` на этапе компиляции.

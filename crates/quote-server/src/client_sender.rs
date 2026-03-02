@@ -1,19 +1,22 @@
 //! Поток UDP-отправки для каждого клиента — фильтрует котировки и отправляет их
 //! как JSON-датаграммы.
 //!
-//! Также отслеживает PING: если клиент перестаёт отправлять PING дольше чем
+//! Проверяет PING-таймаут через [`PingRegistry`](crate::ping_registry::PingRegistry):
+//! если клиент перестаёт отправлять PING дольше чем
 //! [`PING_TIMEOUT_SECS`](quote_common::PING_TIMEOUT_SECS), поток завершается.
 
 use std::{
     collections::HashSet,
     net::{SocketAddr, UdpSocket},
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use crossbeam_channel::Receiver;
-use quote_common::{PING_PAYLOAD, PING_TIMEOUT_SECS, StockQuote};
-use tracing::{debug, info, warn};
+use quote_common::{PING_TIMEOUT_SECS, StockQuote};
+use tracing::{info, warn};
+
+use crate::ping_registry::PingRegistry;
 
 /// Реестр каналов рассылки для всех подключённых клиентов.
 ///
@@ -75,18 +78,21 @@ impl ClientRegistry {
 /// подписке клиента, сериализует каждую котировку в JSON и отправляет
 /// через UDP на адрес клиента.
 ///
-/// Поток также слушает PING-пакеты от клиента на том же UDP-сокете.
-/// Если PING не приходит в течение [`PING_TIMEOUT_SECS`], поток завершается
-/// и клиент считается отключённым.
+/// PING-таймаут проверяется через [`PingRegistry`] — приём UDP-датаграмм
+/// осуществляется отдельным потоком
+/// ([`spawn_ping_receiver`](crate::ping_registry::spawn_ping_receiver)). Если PING не приходит в
+/// течение [`PING_TIMEOUT_SECS`], поток завершается и клиент считается отключённым.
 pub fn spawn_client_sender(
     server_socket: Arc<UdpSocket>,
     client_addr: SocketAddr,
     tickers: HashSet<String>,
     rx: Receiver<Arc<Vec<StockQuote>>>,
+    ping_registry: Arc<PingRegistry>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
         info!(%client_addr, "client sender thread started");
-        run_client_sender(server_socket, client_addr, tickers, rx);
+        run_client_sender(server_socket, client_addr, tickers, rx, &ping_registry);
+        ping_registry.remove(client_addr);
         info!(%client_addr, "client sender thread exited");
     })
 }
@@ -96,9 +102,8 @@ fn run_client_sender(
     client_addr: SocketAddr,
     tickers: HashSet<String>,
     rx: Receiver<Arc<Vec<StockQuote>>>,
+    ping_registry: &PingRegistry,
 ) {
-    let mut last_ping = Instant::now();
-
     // Короткий таймаут для чередования отправки котировок и проверки PING
     let tick = Duration::from_millis(50);
 
@@ -125,25 +130,11 @@ fn run_client_sender(
             }
         }
 
-        // ── 2. Проверка входящего PING от клиента ──
-        let mut ping_buf = [0u8; 64];
-        match socket.recv_from(&mut ping_buf) {
-            Ok((n, peer)) if peer == client_addr => {
-                if n == PING_PAYLOAD.len() && &ping_buf[..n] == PING_PAYLOAD.as_slice() {
-                    debug!(%client_addr, "got PING");
-                    last_ping = Instant::now();
-                } else {
-                    warn!(%peer, n, "unexpected payload from client");
-                }
-            }
-            Ok(_) => { /* пакет с другого адреса — игнорируем */ }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => { /* нет данных */
-            }
-            Err(e) => warn!(%e, "recv_from error"),
-        }
-
-        // Проверка таймаута вне зависимости от результата recv_from
-        if last_ping.elapsed().as_secs() > PING_TIMEOUT_SECS {
+        // ── 2. Проверка PING-таймаута через реестр ──
+        if ping_registry
+            .last_ping(client_addr)
+            .is_none_or(|ts| ts.elapsed().as_secs() > PING_TIMEOUT_SECS)
+        {
             warn!(%client_addr, "PING timeout, disconnecting client");
             return;
         }

@@ -21,6 +21,7 @@ use quote_common::{GENERATION_INTERVAL_MS, RESP_ERR, RESP_OK};
 use quote_server::{
     client_sender::{ClientRegistry, spawn_client_sender},
     generator::QuoteGenerator,
+    ping_registry::{PingRegistry, spawn_ping_receiver},
     protocol::parse_command,
 };
 use tracing::{error, info, warn};
@@ -79,6 +80,10 @@ fn run() -> Result<()> {
     // Реестр клиентов (разделяется между потоком генератора и TCP-акцептором)
     let registry = Arc::new(ClientRegistry::new());
 
+    // Реестр PING-отметок + выделенный поток приёма UDP-датаграмм
+    let ping_registry = Arc::new(PingRegistry::new());
+    spawn_ping_receiver(Arc::clone(&udp_socket), Arc::clone(&ping_registry));
+
     // ── Запуск потока генератора ──
     let gen_registry = Arc::clone(&registry);
     thread::spawn(move || {
@@ -132,7 +137,14 @@ fn run() -> Result<()> {
                 // Подписка и запуск потока отправки
                 let rx = registry.subscribe();
                 let ticker_set: HashSet<String> = cmd.tickers.into_iter().collect();
-                spawn_client_sender(Arc::clone(&udp_socket), cmd.udp_addr, ticker_set, rx);
+                ping_registry.register(cmd.udp_addr);
+                spawn_client_sender(
+                    Arc::clone(&udp_socket),
+                    cmd.udp_addr,
+                    ticker_set,
+                    rx,
+                    Arc::clone(&ping_registry),
+                );
             }
             Err(e) => {
                 let response = format!("{RESP_ERR} {e}\n");

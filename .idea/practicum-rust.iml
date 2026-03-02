@@ -13,6 +13,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/quote-server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/quotes-reader/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/quotes-stream/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/quote-client/examples" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
