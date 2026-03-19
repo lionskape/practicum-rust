@@ -1,0 +1,460 @@
+# Проект модуля 3. Блог-платформа
+
+> **Примечание:** В оригинальном задании используется `actix-web` в качестве HTTP-фреймворка.
+> В нашем проекте вместо `actix-web` необходимо использовать **`axum`**.
+> Соответственно, зависимости `actix-web`, `actix-web-httpauth`, `actix-cors` заменяются на `axum`, `tower-http` (для CORS и middleware), а JWT middleware реализуется через axum extractors и middleware слой.
+
+## Инфраструктура проекта
+
+> Проект разрабатывается в существующем репозитории с уже настроенной инфраструктурой:
+> - **Cargo workspace** — корневой `Cargo.toml` с `members = ["crates/*", "xtask"]`
+> - **xtask** — система автоматизации сборки с алиасами в `.cargo/config.toml`
+> - **CI** — `cargo ci` запускает форматирование, clippy и тесты
+> - **Документация** — Nextra-сайт в `docs/`, автогенерация из rustdoc JSON
+> - **Nightly toolchain** — `rust-toolchain.toml`, `rustfmt.toml` (100 символов)
+>
+> Новые крейты создаются в директории `crates/` и автоматически подхватываются workspace через glob `crates/*`.
+> Проверка: `cargo ci` (алиас для `cargo run -p xtask -- ci`).
+
+## Описание
+
+В этом проекте нужно создать полноценную систему блога, которая объединяет все изученные технологии: веб-сервер с HTTP и gRPC API, клиентскую библиотеку, CLI-инструмент и WASM-фронтенд. Система включает регистрацию и аутентификацию пользователей через JWT-токены, что позволяет защитить операции создания, редактирования и удаления постов.
+
+**Плановое время на выполнение:** 12 часов, включая время на оформление и тестирование.
+
+## Что нужно сделать
+
+Написать четыре крейта в директории `crates/`:
+- веб-сервер с HTTP и gRPC API,
+- клиентскую библиотеку,
+- CLI-клиент,
+- WASM-фронтенд.
+
+## Структура проекта
+
+Новые крейты размещаются в `crates/` (подхватываются workspace автоматически):
+
+```
+practicum-rust/               # Существующий репозиторий
+├── Cargo.toml                # Workspace (members = ["crates/*", "xtask"])
+├── .cargo/config.toml        # Алиасы: cargo ci, cargo xfmt, cargo xclippy
+├── xtask/                    # CI-автоматизация (уже настроен)
+├── docs/                     # Nextra-документация (уже настроена)
+├── crates/
+│   ├── blog-server/          # Крейт 1: Веб-сервер блога
+│   │   ├── Cargo.toml
+│   │   ├── build.rs
+│   │   ├── proto/
+│   │   │   └── blog.proto
+│   │   └── src/
+│   │       ├── main.rs
+│   │       ├── domain/
+│   │       ├── application/
+│   │       ├── data/
+│   │       ├── infrastructure/
+│   │       └── presentation/
+│   ├── blog-client/          # Крейт 2: Библиотека клиента
+│   │   ├── Cargo.toml
+│   │   ├── build.rs
+│   │   ├── proto/
+│   │   │   └── blog.proto    # Копия из blog-server
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── http_client.rs
+│   │       └── grpc_client.rs
+│   ├── blog-cli/             # Крейт 3: CLI-клиент
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       └── main.rs
+│   └── blog-wasm/            # Крейт 4: WASM фронтенд
+│       ├── Cargo.toml
+│       └── src/
+│           └── lib.rs
+```
+
+---
+
+## Шаг 1. Создание крейтов и базовой структуры
+
+Workspace и CI уже настроены. Новые крейты в `crates/` подхватываются автоматически через glob `crates/*`. Нужно создать четыре крейта и добавить новые workspace-зависимости.
+
+### Подсказки
+
+- Создайте четыре крейта в `crates/`: `blog-client` — библиотека (`cargo new --lib crates/blog-client`), `blog-server` — бинарный крейт (`cargo new crates/blog-server`), `blog-cli` — бинарный крейт (`cargo new crates/blog-cli`), `blog-wasm` — библиотека для WASM (`cargo new --lib crates/blog-wasm`).
+- Добавьте новые общие зависимости в `[workspace.dependencies]` корневого `Cargo.toml` (там уже есть `serde`, `anyhow`, `thiserror`, `clap`, `tracing`, `tracing-subscriber` и др.).
+- В `crates/blog-wasm/Cargo.toml` укажите `crate-type = ["cdylib"]` в секции `[lib]`.
+- Создайте необходимые папки: `crates/blog-server/migrations/`, `crates/blog-server/proto/`, `crates/blog-client/proto/`.
+- Дополните `.gitignore`: добавьте `.env`, `.blog_token`.
+- Проверьте, что всё собирается: `cargo ci`.
+
+---
+
+## Шаг 2. Определение protobuf-схемы
+
+В файле `.proto` сервера, работающего на gRPC:
+- Определите методы аутентификации (Login + Register) и операции с постами (`CreatePost`, `GetPost`, `UpdatePost`, `DeletePost`, `ListPosts`).
+- Определите message типы.
+- Перенесите схему блога сервера в крейт клиента.
+- В обоих крейтах должен быть настроен `build.rs` (`cargo:rerun-if-changed` для автоматической пересборки при изменении схемы).
+
+### Подсказки
+
+- Создайте файл `blog-server/proto/blog.proto` с определением gRPC-сервиса.
+- Определите `service BlogService` с методами для аутентификации (`Register`, `Login`) и CRUD-операций с постами.
+- Определите все необходимые message типы: `RegisterRequest`, `LoginRequest`, `AuthResponse`, `User`, `CreatePostRequest`, `Post`, `PostResponse` и другие.
+- Используйте синтаксис `proto3`.
+- Скопируйте `blog.proto` в `blog-client/proto/blog.proto`.
+- Используйте `tonic-build` для генерации Rust кода из proto-файлов.
+- В сервере включите генерацию и сервера, и клиента. В клиенте — только клиента.
+
+---
+
+## Шаг 3. Реализация веб-сервера (blog-server)
+
+Реализуйте приложение, которое будет выполнять роль сервера блога. Тут будет HTTP API и gRPC API — это и есть бэкенд. Сюда входят миграции, работа с БД через sqlx, middleware и безопасность.
+
+### Требования
+
+- **HTTP API** на порте 3000 (**axum**) — можно изменить на 8080, если нужно.
+- **gRPC API** на порте 50051 (`tonic`).
+- Хранение данных в PostgreSQL через `sqlx`.
+- Миграции для создания таблиц `users` и `posts` (используйте `BIGSERIAL`/`BIGINT` для ID, чтобы соответствовать Rust `i64`).
+- JWT-аутентификация для защиты операций создания, редактирования и удаления постов.
+- Обработка ошибок через кастомные типы ошибок (`thiserror`).
+- Логирование через `tracing`.
+- CORS настроен для работы с WASM-фронтендом.
+
+### Настройка зависимостей
+
+> **Примечание:** Вместо `actix-web`, `actix-web-httpauth`, `actix-cors` используйте:
+> - `axum` — HTTP-сервер
+> - `tower-http` (features: `cors`, `trace`) — CORS и middleware
+> - `axum-extra` — дополнительные extractors (при необходимости)
+
+Также добавьте:
+- gRPC: `tonic`, `tonic-build` (в build-dependencies), `prost`, `prost-types`.
+- База данных: `sqlx` с features для PostgreSQL, `dotenvy` для переменных окружения.
+- JWT и безопасность: `jsonwebtoken`, `argon2` для хеширования паролей.
+- Утилиты: `serde`, `serde_json`, `chrono`, `anyhow`, `thiserror`, `tracing`, `tracing-subscriber`.
+- Используйте workspace-зависимости, где возможно.
+
+### Структура проекта (clean architecture)
+
+```
+crates/blog-server/
+├── Cargo.toml
+├── build.rs
+├── migrations/
+│   ├── 20250101000001_create_users.sql
+│   └── 20250101000002_create_posts.sql
+├── proto/
+│   └── blog.proto
+└── src/
+    ├── main.rs
+    ├── domain/
+    │   ├── mod.rs
+    │   ├── post.rs          # Доменная модель Post
+    │   ├── user.rs          # Доменная модель User
+    │   └── error.rs         # Доменные ошибки
+    ├── application/
+    │   ├── mod.rs
+    │   ├── auth_service.rs  # Сервис аутентификации
+    │   └── blog_service.rs  # Бизнес-логика блога
+    ├── data/
+    │   ├── mod.rs
+    │   ├── user_repository.rs  # Репозиторий пользователей
+    │   └── post_repository.rs  # Репозиторий постов
+    ├── infrastructure/
+    │   ├── mod.rs
+    │   ├── database.rs      # Подключение к БД
+    │   ├── jwt.rs           # Работа с JWT токенами
+    │   └── logging.rs       # Настройка tracing
+    └── presentation/
+        ├── mod.rs
+        ├── middleware.rs     # JWT middleware для axum
+        ├── http_handlers.rs # HTTP handlers для axum
+        └── grpc_service.rs  # gRPC сервис для tonic
+```
+
+### Доменные модели
+
+В `src/domain/`:
+- **user.rs** — `User` с полями: `id`, `username`, `email`, `password_hash`, `created_at`. Структуры для запросов: регистрация (`username`, `email`, `password`) и вход (`username`, `password`). Используйте `serde` для сериализации/десериализации.
+- **post.rs** — `Post` с полями: `id`, `title`, `content`, `author_id`, `created_at`, `updated_at`. Структуры для запросов: создание (`title`, `content`) и обновление (`title`, `content`). Реализуйте метод `new` для создания нового поста.
+- **error.rs** — кастомные типы ошибок через `thiserror`: `UserNotFound`, `UserAlreadyExists`, `InvalidCredentials`, `PostNotFound`, `Forbidden` и другие необходимые ошибки.
+
+### Миграции
+
+**`crates/blog-server/migrations/20250101000001_create_users.sql`**: таблица `users` — `id` (BIGSERIAL PRIMARY KEY), `username` (VARCHAR, UNIQUE), `email` (VARCHAR, UNIQUE), `password_hash` (VARCHAR), `created_at` (TIMESTAMP WITH TIME ZONE). Добавьте индексы на `username` и `email`.
+
+**`crates/blog-server/migrations/20250101000002_create_posts.sql`**: таблица `posts` — `id` (BIGSERIAL PRIMARY KEY), `title` (VARCHAR), `content` (TEXT), `author_id` (BIGINT, FOREIGN KEY на `users.id`), `created_at`, `updated_at` (TIMESTAMP WITH TIME ZONE). Внешний ключ с `ON DELETE CASCADE`. Индексы на `created_at` и `author_id`.
+
+В `src/infrastructure/database.rs` — функция для подключения к БД (connection pool) и применения миграций через `sqlx::migrate!()`.
+
+### JWT-аутентификация
+
+В `src/infrastructure/jwt.rs`:
+- Структура `Claims` с полями: `user_id`, `username`, `exp` (время истечения).
+- Структура `JwtService` с encoding и decoding ключами.
+- Методы: `new(secret)`, `generate_token(user_id, username)` (время жизни 24 часа), `verify_token(token)`.
+- Используйте библиотеку `jsonwebtoken`.
+
+### HTTP API endpoints
+
+> **Примечание:** В axum вместо `web::Data<Arc<...>>` используйте `State<Arc<AppState>>` (axum extractor). JWT middleware реализуется через axum `middleware::from_fn` или кастомный extractor.
+
+#### Аутентификация (публичные endpoints):
+
+- **POST `/api/auth/register`** — регистрация нового пользователя. Принимает JSON с `username`, `email`, `password`. Хеширует пароль (Argon2), сохраняет в БД, генерирует JWT-токен. Возвращает `201 Created` с `{ "token": "...", "user": {...} }`. Обрабатывает `UserAlreadyExists` (409 Conflict).
+- **POST `/api/auth/login`** — вход в систему. Принимает JSON с `username`, `password`. Находит пользователя, проверяет пароль (сравнение хеша). Возвращает `200 OK` с `{ "token": "...", "user": {...} }`. При неверных credentials — `401 Unauthorized`.
+
+#### CRUD-операции с постами:
+
+- **POST `/api/posts`** — создание поста (требует аутентификации). `user_id` извлекается из JWT-токена. Возвращает `201 Created`.
+- **GET `/api/posts/{id}`** — получение поста (публичный). Возвращает `200 OK` или `404 Not Found`.
+- **PUT `/api/posts/{id}`** — обновление поста (требует аутентификации). Проверяет авторство. Возвращает `200 OK` или `403 Forbidden` / `404 Not Found`.
+- **DELETE `/api/posts/{id}`** — удаление поста (требует аутентификации). Проверяет авторство. Возвращает `204 No Content` или `403 Forbidden` / `404 Not Found`.
+- **GET `/api/posts`** — список постов (публичный, с пагинацией). Query-параметры `limit` и `offset` (по умолчанию `limit=10`, `offset=0`). Возвращает `{ "posts": [...], "total": N, "limit": 10, "offset": 0 }`.
+
+### JWT Middleware для axum
+
+> **Примечание:** В axum middleware реализуется иначе, чем в actix-web. Рекомендуется создать кастомный extractor `AuthenticatedUser`, который извлекает и валидирует JWT из заголовка `Authorization: Bearer <token>`.
+
+В `src/presentation/middleware.rs`:
+- Определите структуру `AuthenticatedUser` с полями `user_id` и `username`.
+- Реализуйте `FromRequestParts` для `AuthenticatedUser` — это axum-way создания extractors.
+- Extractor должен: извлечь заголовок `Authorization`, валидировать Bearer-токен через `JwtService`, вернуть `AuthenticatedUser` или ошибку `401 Unauthorized`.
+- В роутере примените middleware только к защищённым маршрутам, используя `Router::layer` или вложенные роутеры.
+
+### gRPC-сервис
+
+Реализуйте все методы из `proto/blog.proto` в `presentation/grpc_service.rs`:
+- Структура `BlogGrpcService`, реализующая trait `BlogService` из сгенерированного кода.
+- Используйте тот же `BlogService` и `AuthService` из application слоя.
+- Извлекайте JWT-токен из метаданных запроса: `request.metadata().get("authorization")`.
+- Для защищённых методов проверяйте токен через `JwtService`.
+- Правильные gRPC-статусы: `Status::ok()`, `Status::unauthenticated()`, `Status::not_found()`, `Status::invalid_argument()`, `Status::already_exists()`.
+
+### Настройка CORS
+
+> **Примечание:** В axum CORS настраивается через `tower_http::cors::CorsLayer`.
+
+```rust
+use tower_http::cors::{CorsLayer, Any};
+
+let cors = CorsLayer::new()
+    .allow_origin(Any)
+    .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+    .allow_headers(Any)
+    .max_age(Duration::from_secs(3600));
+```
+
+### Запуск сервера
+
+В `main.rs`:
+1. Инициализируйте логирование через `tracing-subscriber`.
+2. Загрузите переменные окружения через `dotenvy::dotenv()`.
+3. Подключитесь к БД, создайте connection pool, примените миграции.
+4. Инициализируйте сервисы (`JwtService`, репозитории, `AuthService`, `BlogService`), оберните в `Arc`.
+5. Настройте HTTP-сервер (axum) на `0.0.0.0:3000`.
+6. Настройте gRPC-сервер (tonic) на `0.0.0.0:50051`.
+7. Запустите оба сервера параллельно через `tokio::select!`.
+
+### Переменные окружения
+
+Создайте файл `.env` в корне `crates/blog-server`:
+- `DATABASE_URL` — строка подключения к PostgreSQL.
+- `JWT_SECRET` — секретный ключ для JWT (минимум 32 символа).
+- Не коммитьте `.env` в git! (уже есть в `.gitignore`)
+
+---
+
+## Шаг 4. Реализация клиентской библиотеки (blog-client)
+
+Библиотека, которая будет использоваться CLI и WASM-фронтендом. Объедините общие модели, транспорт и обработку ошибок в одном месте.
+
+### Зависимости
+
+- HTTP-клиент: `reqwest` с feature `json`.
+- gRPC-клиент: `tonic`, `tonic-build` (в build-dependencies), `prost`, `prost-types`.
+- Утилиты: `serde`, `serde_json`, `chrono`, `anyhow`, `thiserror`, `tokio`.
+
+### Структура библиотеки
+
+В `src/lib.rs` определите:
+- Enum `Transport` с вариантами `Http(String)` и `Grpc(String)`.
+- Структуру `BlogClient` с полями: `transport`, `http_client` (Option), `grpc_client` (Option), `token` (Option).
+- Структуры `AuthResponse`, `User`, `Post`.
+
+### Методы BlogClient
+
+- `new(transport)` — создание клиента.
+- `set_token(token)` / `get_token()` — управление JWT-токеном.
+- `register(username, email, password)` — регистрация, сохранение токена.
+- `login(username, password)` — вход, сохранение токена.
+- `create_post(title, content)` — создание поста (требует токен).
+- `get_post(id)` — получение поста.
+- `update_post(id, title, content)` — обновление поста (требует токен).
+- `delete_post(id)` — удаление поста (требует токен).
+- `list_posts(limit, offset)` — список постов с пагинацией.
+
+### Обработка ошибок
+
+Enum `BlogClientError` в `src/error.rs`:
+- Варианты для HTTP-ошибок (`reqwest::Error`), gRPC-ошибок (`tonic::Status`), транспортных ошибок.
+- Бизнес-логика: `NotFound`, `Unauthorized`, `InvalidRequest(String)`.
+- Используйте `thiserror`.
+
+---
+
+## Шаг 5. Реализация CLI-клиента (blog-cli)
+
+CLI служит универсальным инструментом проверки бэкенда.
+
+### Зависимости
+
+- `blog-client` из локального пути.
+- `clap` с feature `derive`.
+- `dotenvy`, `chrono` (опционально).
+- `tokio` из workspace.
+
+### Структура CLI
+
+Используйте `clap` для парсинга аргументов:
+- Структура `Cli` с полем `command` (subcommand) и глобальными опциями: `--grpc` (флаг), `--server` (опциональный адрес).
+- Enum `Commands`: `Register`, `Login`, `Create`, `Get`, `Update`, `Delete`, `List`.
+- Для каждого варианта — необходимые аргументы.
+
+### Примеры использования
+
+```bash
+blog-cli register --username "ivan" --email "ivan@example.com" --password "secret123"
+blog-cli login --username "ivan" --password "secret123"
+blog-cli create --title "Мой первый пост" --content "Содержание"
+blog-cli create --title "Мой первый пост" --content "Содержание" --grpc
+blog-cli get --id 1
+blog-cli update --id 1 --title "Обновлённый заголовок"
+blog-cli delete --id 1
+blog-cli list --limit 20 --offset 0
+```
+
+Токен сохраняется в файл `.blog_token` после регистрации/входа и загружается при запуске.
+
+---
+
+## Шаг 6. Реализация WASM-фронтенда (blog-wasm)
+
+Фронтенд-приложение, компилируемое в WebAssembly и работающее в браузере.
+
+Можно использовать один из Rust-фреймворков: **Yew**, **Leptos**, **Dioxus** или **egui**. Для базовой реализации достаточно `wasm-bindgen`.
+
+### Зависимости
+
+- `wasm-bindgen`, `wasm-bindgen-futures`.
+- `web-sys` с features: `Document`, `Element`, `HtmlElement`, `Window`, `Request`, `RequestInit`, `Response`, `Headers`, `console`.
+- `gloo-net` для HTTP-запросов.
+- `serde`, `serde-wasm-bindgen`, `serde_json`.
+- `js-sys`.
+
+> В браузере gRPC обычно не используется. WASM-фронтенд должен использовать только HTTP-транспорт. Делайте HTTP-запросы напрямую через `gloo-net` или `web-sys::Request`.
+
+### Минимальная функциональность
+
+- Форма регистрации (username, email, password).
+- Форма входа (username, password).
+- Сохранение JWT-токена в `localStorage`.
+- Список всех постов при загрузке страницы.
+- Форма создания нового поста — только для аутентифицированных.
+- Редактирование поста — только для автора.
+- Удаление поста — только для автора.
+- Отображение статуса аутентификации.
+- Базовая валидация форм.
+
+### Сборка и запуск
+
+```bash
+wasm-pack build --target web
+python3 -m http.server 8000
+# Открыть http://localhost:8000
+```
+
+---
+
+## Шаг 7. Документация
+
+Дополните документацию проекта:
+- Описание блог-платформы и её архитектуры (крейты, их связи).
+- Инструкции по установке зависимостей и настройке окружения (PostgreSQL, переменные окружения).
+- Пошаговые команды для сборки и запуска каждого компонента.
+- Примеры реальных сценариев: curl, CLI-команды, шаги в браузере.
+- Проверка: `cargo ci` проходит без ошибок.
+
+---
+
+## Артефакты проекта
+
+- Все четыре крейта в `crates/`: `blog-server`, `blog-client`, `blog-cli`, `blog-wasm`.
+- Workspace компилируется без ошибок (`cargo ci` проходит).
+- Документация с описанием и инструкциями по запуску.
+
+---
+
+## Чек-листы
+
+### Общие обязательные требования
+
+- [ ] В `crates/` присутствуют все четыре крейта.
+- [ ] `cargo ci` проходит без ошибок (формат, clippy, тесты).
+- [ ] Структура логична: крейты в `crates/`, код разбит на модули.
+- [ ] Новые workspace-зависимости добавлены в корневой `Cargo.toml`.
+- [ ] Документация содержит описание проекта и инструкции по запуску.
+- [ ] `.gitignore` дополнен для `.env`, `.blog_token`, `.sqlx/`.
+
+### Веб-сервер (blog-server)
+
+- [ ] Сервер компилируется и запускается (`cargo run -p blog-server`).
+- [ ] HTTP-сервер на порте 8080, gRPC-сервер на порте 50051.
+- [ ] Оба сервера запускаются одновременно.
+- [ ] Clean architecture: `domain/`, `application/`, `data/`, `infrastructure/`, `presentation/`.
+- [ ] Миграции созданы и применяются автоматически.
+- [ ] Таблицы `users` и `posts` корректны, есть внешний ключ.
+- [ ] SQL-запросы параметризованы, используется connection pool.
+- [ ] Пароли хранятся как хеши (Argon2).
+- [ ] JWT middleware реализован, токены проверяются.
+- [ ] HTTP API: все endpoints работают с правильными статус-кодами.
+- [ ] gRPC API: все методы реализованы с правильными статусами.
+- [ ] Кастомные типы ошибок, логирование через `tracing`.
+
+### Клиентская библиотека (blog-client)
+
+- [ ] Компилируется без ошибок (`cargo build -p blog-client`).
+- [ ] `BlogClient` с поддержкой HTTP и gRPC транспортов.
+- [ ] Единый интерфейс независимо от транспорта.
+- [ ] JWT-токен передаётся в заголовках/метаданных.
+- [ ] Кастомный тип ошибки `BlogClientError`.
+
+### CLI-клиент (blog-cli)
+
+- [ ] Компилируется и запускается (`cargo run -p blog-cli`).
+- [ ] Использует `blog-client`, не дублирует код.
+- [ ] Все команды работают: `register`, `login`, `create`, `get`, `update`, `delete`, `list`.
+- [ ] Переключение HTTP/gRPC через `--grpc`.
+- [ ] Токен сохраняется/загружается из `.blog_token`.
+
+### WASM-фронтенд (blog-wasm)
+
+- [ ] Компилируется через `wasm-pack build --target web`.
+- [ ] `crate-type = ["cdylib"]` в `Cargo.toml`.
+- [ ] Формы регистрации и входа работают.
+- [ ] JWT-токен сохраняется в `localStorage`.
+- [ ] CRUD-операции с постами работают в браузере.
+- [ ] DOM обновляется при изменениях.
+
+### Качество кода
+
+- [ ] `cargo ci` проходит (формат по `rustfmt.toml` — 100 символов, clippy без warnings, тесты).
+- [ ] Осмысленные имена, нет «магических чисел».
+- [ ] Нет дублирования кода между компонентами.
+- [ ] Логирование через `tracing`, не `println!`.
+- [ ] Код компилируется без warnings.
+- [ ] Идиомы Rust: `Result`, `Option`, `match`.
