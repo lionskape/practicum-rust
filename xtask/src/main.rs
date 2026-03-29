@@ -90,8 +90,15 @@ fn test_unit(sh: &Shell) -> Result<()> {
 
 /// Запустить e2e-тесты.
 ///
-/// Сначала собирает бинарники воркспейса, затем запускает тесты из `e2e-tests`.
+/// Сначала проверяет наличие крейта `e2e-tests` в воркспейсе.
+/// Если крейт отсутствует — пропускает тесты с предупреждением.
+/// Иначе собирает бинарники и запускает тесты.
 fn test_e2e(sh: &Shell) -> Result<()> {
+    let crates = workspace_crates(sh)?;
+    if !crates.iter().any(|c| c == "e2e-tests") {
+        eprintln!("Пропуск e2e-тестов: крейт e2e-tests не найден в воркспейсе");
+        return Ok(());
+    }
     ensure_nextest(sh)?;
     eprintln!("Сборка бинарников для e2e-тестов...");
     cmd!(sh, "cargo build --workspace").run()?;
@@ -263,14 +270,21 @@ fn docs_ci(sh: &Shell) -> Result<()> {
             .output()?
             .into();
 
-    // Сборка бинарников для e2e тестов
-    eprintln!("  Сборка бинарников...");
-    cmd!(sh, "cargo build --workspace --color=always").run()?;
-
-    // E2E-тесты
-    eprintln!("  Запуск e2e-тестов...");
-    let e2e_tests_result =
-        cmd!(sh, "cargo nextest run -p e2e-tests --color=always").ignore_status().output()?.into();
+    // E2E-тесты (если крейт e2e-tests есть в воркспейсе)
+    let crates = workspace_crates(sh)?;
+    let e2e_tests_result = if crates.iter().any(|c| c == "e2e-tests") {
+        eprintln!("  Сборка бинарников...");
+        cmd!(sh, "cargo build --workspace --color=always").run()?;
+        eprintln!("  Запуск e2e-тестов...");
+        cmd!(sh, "cargo nextest run -p e2e-tests --color=always").ignore_status().output()?.into()
+    } else {
+        eprintln!("  Пропуск e2e-тестов: крейт не найден");
+        CiCheckResult {
+            success: true,
+            stdout: String::new(),
+            stderr: "Пропущено: крейт e2e-tests не найден\n".to_string(),
+        }
+    };
 
     eprintln!("  Запуск doctests...");
     let doctests_result = cmd!(sh, "cargo +nightly test --workspace --doc --color=always")

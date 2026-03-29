@@ -25,3 +25,10 @@ target
 
 # Auto-generated CI results for docs
 docs/content/ci/
+
+# Environment and secrets
+.env
+.blog_token
+
+# SQLx offline mode cache
+.sqlx/

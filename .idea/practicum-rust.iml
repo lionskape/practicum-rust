@@ -14,6 +14,10 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/quotes-reader/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/quotes-stream/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/quote-client/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/blog-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/blog-client/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/blog-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/blog-wasm/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
