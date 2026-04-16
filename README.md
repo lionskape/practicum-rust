@@ -1,343 +1,162 @@
-# Blog Platform
+# Image Processor With FFI Plugins
 
-Полнофункциональная блог-платформа на Rust, состоящая из 4 крейтов: сервер с двумя API (HTTP + gRPC), клиентская библиотека, CLI и WASM-фронтенд.
+CLI-приложение на Rust для обработки PNG-изображений через динамически подключаемые плагины. Проект реализует FFI-взаимодействие, безопасную работу с `unsafe`-кодом и расширяемую плагинную архитектуру в рамках одного Cargo workspace.
 
-## Архитектура
+## Workspace
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    blog-server                          │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  axum    │  │    tonic     │  │   PostgreSQL     │  │
-│  │ HTTP API │  │  gRPC API    │  │   (sqlx)         │  │
-│  │ :8080    │  │  :50051      │  │                  │  │
-│  └────┬─────┘  └──────┬───────┘  └────────┬─────────┘  │
-│       │               │                   │             │
-│       └───────┬───────┘                   │             │
-│               ▼                           │             │
-│  ┌──────────────────────┐  ┌──────────────┘             │
-│  │   Application Layer  │  │                            │
-│  │  AuthService         │  │  Domain: User, Post        │
-│  │  BlogService         │  │  Data:   Repositories      │
-│  └──────────────────────┘  └────────────────────────────│
-└─────────────────────────────────────────────────────────┘
-        ▲                           ▲
-        │ HTTP (reqwest)            │ gRPC (tonic)
-        │                           │
-┌───────┴───────────────────────────┴──────┐
-│              blog-client                  │
-│  Unified API: Transport::Http | ::Grpc   │
-└──────────────────┬───────────────────────┘
-        ▲          │
-        │          ▼
-┌───────┴──┐  ┌────────────┐
-│ blog-cli │  │ blog-wasm  │
-│  (clap)  │  │ (gloo-net) │
-│ Terminal │  │  Browser   │
-└──────────┘  └────────────┘
+```text
+practicum-rust/
+├── crates/
+│   ├── image_processor/  # CLI: загрузка PNG, чтение params, вызов плагина, сохранение PNG
+│   ├── mirror_plugin/    # cdylib: зеркальное отражение
+│   ├── blur_plugin/      # cdylib: box blur
+│   └── e2e-tests/        # сквозные тесты для cargo ci
+├── docs/                 # Nextra-документация
+└── xtask/                # alias-команды: cargo ci, cargo xtest, cargo docs
 ```
 
 ### Крейты
 
-| Крейт | Тип | Описание |
-|-------|-----|----------|
-| [`blog-server`](crates/blog-server/) | binary | HTTP + gRPC сервер, Clean Architecture, JWT auth, PostgreSQL |
-| [`blog-client`](crates/blog-client/) | library | Клиентская библиотека с HTTP и gRPC транспортами |
-| [`blog-cli`](crates/blog-cli/) | binary | Консольный клиент (clap), работает через `blog-client` |
-| [`blog-wasm`](crates/blog-wasm/) | cdylib | Браузерный SPA, прямые HTTP-запросы через `gloo-net` |
-
-### Связи между крейтами
-
-- **blog-cli** зависит от **blog-client** (использует `BlogClient` API)
-- **blog-client** общается с **blog-server** по HTTP или gRPC
-- **blog-wasm** общается с **blog-server** напрямую по HTTP (не зависит от `blog-client`, т.к. `reqwest`/`tonic` не работают в WASM)
-- **blog-server** — самостоятельный, не зависит от остальных крейтов
+| Крейт | Тип | Назначение |
+| --- | --- | --- |
+| `image_processor` | binary + lib | Консольный интерфейс и основной конвейер обработки изображения |
+| `mirror_plugin` | `cdylib` | Отражение изображения по горизонтали и/или вертикали |
+| `blur_plugin` | `cdylib` | Детерминированное box blur с параметрами радиуса и итераций |
+| `e2e-tests` | lib + integration tests | Сквозные проверки CLI и FFI-плагинов |
 
 ## Требования
 
-- **Rust nightly** (устанавливается автоматически через `rust-toolchain.toml`)
-- **[Apple Container](https://github.com/apple/container)** (для PostgreSQL):
-  ```bash
-  brew install container
-  ```
-- **protoc** (Protocol Buffers compiler):
-  ```bash
-  brew install protobuf
-  ```
+- Rust nightly из `rust-toolchain.toml`
+- `cargo-nextest` для тестов устанавливается автоматически через `xtask`
+- Bun нужен только для сборки сайта документации
 
-## Быстрый старт
-
-Одна команда для запуска PostgreSQL + сервера:
+## Команды
 
 ```bash
-./scripts/start.sh
+cargo xfmt       # форматирование workspace
+cargo xclippy    # clippy с -D warnings
+cargo xtest      # unit + e2e + doctests
+cargo ci         # fmt-check + clippy + tests
+cargo docs       # сборка документации
 ```
 
-Скрипт:
-1. Создаёт `.env` из `.env.example` (если нет)
-2. Создаёт volume `blog-pgdata` для персистентного хранения данных
-3. Запускает PostgreSQL 17 в Apple Container и ждёт готовности
-4. Собирает и запускает `blog-server` (миграции применяются автоматически)
+## Как это работает
 
-После запуска:
-- HTTP API: http://localhost:8080
-- gRPC: localhost:50051
+1. `image_processor` читает PNG через крейт `image`.
+2. Изображение преобразуется в `Rgba8` и передаётся как плоский `Vec<u8>`.
+3. CLI валидирует `params` как JSON и передаёт их в плагин как `CString`.
+4. Плагин загружается через `libloading` из `target/debug` или из директории, переданной в `--plugin-path`.
+5. Экспортируемая функция `process_image` модифицирует буфер RGBA на месте.
+6. CLI сохраняет результат обратно в PNG.
 
-Управление:
-```bash
-./scripts/start.sh          # запуск PostgreSQL + сервер
-./scripts/start.sh --down   # остановить и удалить контейнер (данные сохраняются в volume)
-./scripts/start.sh --status # показать состояние контейнера
+### ABI плагина
+
+Все плагины экспортируют один и тот же C-совместимый символ:
+
+```c
+void process_image(
+    uint32_t width,
+    uint32_t height,
+    uint8_t* rgba_data,
+    const char* params
+);
 ```
 
-### Ручной запуск (без скрипта)
+### Имена библиотек по ОС
 
-```bash
-# 1. Запустить PostgreSQL через Apple Container
-container run --name blog-postgres -d \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=blog \
-  -p 5432:5432 \
-  docker.io/library/postgres:17-alpine
+- Linux: `libmirror_plugin.so`, `libblur_plugin.so`
+- macOS: `libmirror_plugin.dylib`, `libblur_plugin.dylib`
+- Windows: `mirror_plugin.dll`, `blur_plugin.dll`
 
-# 2. Создать .env
-cp .env.example .env
+## Форматы params
 
-# 3. Запустить сервер
-cargo run -p blog-server
+Оба плагина принимают `params` строго как JSON.
 
-# Остановка
-container stop blog-postgres
-container rm blog-postgres
+### `mirror_plugin`
+
+```json
+{
+  "horizontal": true,
+  "vertical": false
+}
 ```
 
-## Переменные окружения
+Оба поля опциональны. Если оба отсутствуют или равны `false`, плагин делает no-op.
 
-Файл `.env` (создаётся из `.env.example`):
+### `blur_plugin`
 
-| Переменная | Описание | По умолчанию |
-|-----------|----------|--------------|
-| `DATABASE_URL` | Строка подключения к PostgreSQL | `postgres://postgres:postgres@localhost:5432/blog` |
-| `JWT_SECRET` | Секрет для подписи JWT-токенов | `change-me-in-production` |
-| `HTTP_PORT` | Порт HTTP API | `8080` |
-| `GRPC_PORT` | Порт gRPC API | `50051` |
-
-Для продакшена замените `JWT_SECRET` на случайную строку:
-
-```bash
-openssl rand -base64 32
+```json
+{
+  "radius": 1,
+  "iterations": 2
+}
 ```
 
-## Сценарии использования
+Оба поля обязательны и должны быть больше нуля.
 
-После запуска сервера (`./scripts/start.sh`) можно работать через curl, CLI или браузер.
+## Сборка
 
-### Сценарий 1: curl (HTTP API)
-
-Все эндпоинты находятся под префиксом `/api`.
+Собрать все крейты workspace:
 
 ```bash
-# --- Регистрация ---
-curl -s -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "alice", "email": "alice@example.com", "password": "secret123"}' \
-  | jq .
-
-# Ответ:
-# {
-#   "token": "eyJhbGciOiJIUzI1NiIs...",
-#   "user": { "id": 1, "username": "alice", "email": "alice@example.com" }
-# }
-
-# Сохраним токен в переменную:
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "bob", "email": "bob@example.com", "password": "secret123"}' \
-  | jq -r .token)
-
-# --- Вход ---
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "bob", "password": "secret123"}' \
-  | jq -r .token)
-
-# --- Создание поста ---
-curl -s -X POST http://localhost:8080/api/posts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"title": "Мой первый пост", "content": "Привет, мир! Это блог на Rust."}' \
-  | jq .
-
-# --- Список постов (пагинация) ---
-curl -s "http://localhost:8080/api/posts?limit=10&offset=0" | jq .
-
-# --- Получение поста по ID ---
-curl -s http://localhost:8080/api/posts/1 | jq .
-
-# --- Обновление поста (только автор) ---
-curl -s -X PUT http://localhost:8080/api/posts/1 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"title": "Обновлённый заголовок", "content": "Новое содержимое поста."}' \
-  | jq .
-
-# --- Удаление поста (только автор) ---
-curl -s -X DELETE http://localhost:8080/api/posts/1 \
-  -H "Authorization: Bearer $TOKEN" -w "\nHTTP %{http_code}\n"
-# Ответ: HTTP 204 (No Content)
+cargo build --workspace
 ```
 
-### Сценарий 2: CLI (blog-cli)
+После этого артефакты появятся в `target/debug`, включая CLI и динамические библиотеки плагинов.
+
+## Примеры запуска
+
+### Зеркальное отражение
 
 ```bash
-# --- Регистрация (токен сохраняется в .blog_token) ---
-cargo run -p blog-cli -- register \
-  --username alice \
-  --email alice@example.com \
-  --password secret123
+cat > mirror.json <<'JSON'
+{
+  "horizontal": true,
+  "vertical": false
+}
+JSON
 
-# Registered successfully!
-# User: alice (id: 1, email: alice@example.com)
-
-# --- Вход ---
-cargo run -p blog-cli -- login \
-  --username alice \
-  --password secret123
-
-# --- Создание поста ---
-cargo run -p blog-cli -- create \
-  --title "Пост из CLI" \
-  --content "Создан через консольный клиент"
-
-# --- Просмотр поста ---
-cargo run -p blog-cli -- get --id 1
-
-# --- Список постов ---
-cargo run -p blog-cli -- list --limit 10
-
-# --- Обновление поста ---
-cargo run -p blog-cli -- update --id 1 \
-  --title "Обновлённый" \
-  --content "Изменено через CLI"
-
-# --- Удаление поста ---
-cargo run -p blog-cli -- delete --id 1
-
-# --- Работа через gRPC (вместо HTTP) ---
-cargo run -p blog-cli -- --grpc register \
-  --username charlie \
-  --email charlie@example.com \
-  --password secret123
-
-# --- Указание адреса сервера ---
-cargo run -p blog-cli -- --server http://my-server:8080 list
+cargo run -p image_processor -- \
+  --input ./input.png \
+  --output ./mirrored.png \
+  --plugin mirror_plugin \
+  --params ./mirror.json \
+  --plugin-path ./target/debug
 ```
 
-### Сценарий 3: WASM (браузер)
+### Размытие
 
 ```bash
-# 1. Установить wasm-pack
-cargo install wasm-pack
+cat > blur.json <<'JSON'
+{
+  "radius": 1,
+  "iterations": 2
+}
+JSON
 
-# 2. Собрать WASM-модуль
-wasm-pack build --target web crates/blog-wasm
-
-# 3. Запустить локальный HTTP-сервер
-cd crates/blog-wasm
-python3 -m http.server 8000
+cargo run -p image_processor -- \
+  --input ./input.png \
+  --output ./blurred.png \
+  --plugin blur_plugin \
+  --params ./blur.json \
+  --plugin-path ./target/debug
 ```
 
-Откройте http://localhost:8000 в браузере:
+## Тестирование
 
-1. **Регистрация** — заполните поля Username, Email, Password, нажмите Register
-2. **Вход** — или используйте Login с существующим аккаунтом
-3. **Создание поста** — после входа появятся поля Title и Content
-4. **Просмотр ленты** — посты отображаются автоматически, кнопка Refresh обновляет
-5. **Выход** — кнопка Logout очищает токен из localStorage
-
-## HTTP API Reference
-
-| Метод | Эндпоинт | Auth | Описание | Статус |
-|-------|----------|------|----------|--------|
-| POST | `/api/auth/register` | — | Регистрация | 201 |
-| POST | `/api/auth/login` | — | Вход | 200 |
-| POST | `/api/posts` | Bearer | Создать пост | 201 |
-| GET | `/api/posts` | — | Список постов (?limit=&offset=) | 200 |
-| GET | `/api/posts/{id}` | — | Получить пост | 200 |
-| PUT | `/api/posts/{id}` | Bearer | Обновить пост (автор) | 200 |
-| DELETE | `/api/posts/{id}` | Bearer | Удалить пост (автор) | 204 |
-
-### Коды ошибок
-
-| Код | Причина |
-|-----|---------|
-| 401 | Неверные учётные данные / отсутствует токен |
-| 403 | Попытка изменить/удалить чужой пост |
-| 404 | Пост или пользователь не найден |
-| 409 | Пользователь с таким username/email уже существует |
-
-## gRPC API
-
-Определение сервиса: [`proto/blog.proto`](crates/blog-server/proto/blog.proto)
-
-Методы: `Register`, `Login`, `CreatePost`, `GetPost`, `UpdatePost`, `DeletePost`, `ListPosts`.
-
-Авторизация через metadata: ключ `authorization`, значение `Bearer <token>`.
-
-## Структура проекта
-
-```
-practicum-rust/
-├── Cargo.toml              — workspace с общими зависимостями
-├── rust-toolchain.toml     — nightly Rust
-├── scripts/
-│   └── start.sh            — запуск одной командой (Apple Container + сервер)
-├── .env.example            — шаблон переменных окружения
-├── crates/
-│   ├── blog-server/        — сервер (axum + tonic + sqlx)
-│   │   ├── proto/          — gRPC-определения (blog.proto)
-│   │   ├── migrations/     — SQL-миграции (users, posts)
-│   │   └── src/
-│   │       ├── domain/     — сущности и ошибки
-│   │       ├── data/       — трейты репозиториев + PostgreSQL
-│   │       ├── application/— бизнес-логика (AuthService, BlogService)
-│   │       ├── infrastructure/ — JWT, пароли, конфиг, БД
-│   │       └── presentation/   — HTTP (axum) + gRPC (tonic)
-│   ├── blog-client/        — клиентская библиотека (reqwest + tonic)
-│   ├── blog-cli/           — консольный клиент (clap)
-│   └── blog-wasm/          — браузерный SPA (wasm-bindgen + gloo-net)
-├── xtask/                  — CI-автоматизация (fmt, clippy, test)
-└── docs/                   — документация (Nextra)
-```
-
-## Сборка и тесты
+Локально рекомендуется запускать проверки в таком порядке:
 
 ```bash
-# Полный CI pipeline (формат + линтер + тесты)
-cargo ci
-
-# Только тесты
-cargo test --workspace
-
-# Только clippy
-cargo clippy --workspace -- -D warnings
-
-# Форматирование
-cargo fmt --all
+cargo build --workspace
+cargo xtest
+cargo xclippy
 ```
 
-## Технологический стек
+`e2e-tests` ожидают, что `image_processor`, `mirror_plugin` и `blur_plugin` уже собраны в `target/debug`. В `cargo ci` это обеспечивается автоматически через `xtask`.
 
-| Компонент | Технология |
-|-----------|------------|
-| HTTP-сервер | axum 0.8 |
-| gRPC-сервер | tonic 0.13 + prost |
-| База данных | PostgreSQL 17 + sqlx 0.8 |
-| Контейнеризация | [Apple Container](https://github.com/apple/container) |
-| Аутентификация | JWT (jsonwebtoken) + argon2 |
-| HTTP-клиент | reqwest 0.12 |
-| gRPC-клиент | tonic 0.13 |
-| CLI | clap 4 (derive) |
-| WASM | wasm-bindgen + gloo-net + web-sys |
-| CI | xtask (cargo ci = fmt + clippy + nextest) |
+## Что покрыто тестами
+
+- unit-тесты `image_processor` на ошибки CLI и валидацию `params`
+- unit-тесты `mirror_plugin` на горизонтальное, вертикальное и комбинированное отражение
+- unit-тесты `blur_plugin` на детерминированный box blur и безопасный no-op при невалидных параметрах
+- e2e-тесты с реальным запуском бинарника и загрузкой `cdylib`

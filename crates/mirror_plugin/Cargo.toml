@@ -1,0 +1,12 @@
+[package]
+name = "mirror_plugin"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
