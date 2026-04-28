@@ -80,11 +80,16 @@ fn help() -> Result<()> {
 
 /// Запустить unit-тесты (без e2e).
 ///
-/// Исключает крейт `e2e-tests` из запуска.
+/// Исключает крейт `e2e-tests` из запуска, если он есть в воркспейсе.
 fn test_unit(sh: &Shell) -> Result<()> {
     ensure_nextest(sh)?;
     eprintln!("Запуск unit-тестов...");
-    cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests").run()?;
+    let crates = workspace_crates(sh)?;
+    if has_e2e_tests(&crates) {
+        cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests --no-tests pass").run()?;
+    } else {
+        cmd!(sh, "cargo nextest run --workspace --no-tests pass").run()?;
+    }
     Ok(())
 }
 
@@ -95,7 +100,7 @@ fn test_unit(sh: &Shell) -> Result<()> {
 /// Иначе собирает бинарники и запускает тесты.
 fn test_e2e(sh: &Shell) -> Result<()> {
     let crates = workspace_crates(sh)?;
-    if !crates.iter().any(|c| c == "e2e-tests") {
+    if !has_e2e_tests(&crates) {
         eprintln!("Пропуск e2e-тестов: крейт e2e-tests не найден в воркспейсе");
         return Ok(());
     }
@@ -111,6 +116,10 @@ fn test_e2e(sh: &Shell) -> Result<()> {
 ///
 /// nextest не поддерживает doc-тесты, поэтому используем стандартный cargo test.
 fn test_doc(sh: &Shell) -> Result<()> {
+    if !has_doc_tests(sh)? {
+        eprintln!("Пропуск doc-тестов: в воркспейсе нет целей для doc-тестов");
+        return Ok(());
+    }
     eprintln!("Запуск doc-тестов...");
     cmd!(sh, "cargo +nightly test --workspace --doc").run()?;
     Ok(())
@@ -262,17 +271,24 @@ fn docs_ci(sh: &Shell) -> Result<()> {
 
     ensure_nextest(sh)?;
 
+    let crates = workspace_crates(sh)?;
+
     // Unit-тесты (без e2e)
     eprintln!("  Запуск unit-тестов...");
-    let unit_tests_result =
-        cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests --color=always")
+    let unit_tests_result = if has_e2e_tests(&crates) {
+        cmd!(sh, "cargo nextest run --workspace --exclude e2e-tests --no-tests pass --color=always")
             .ignore_status()
             .output()?
-            .into();
+            .into()
+    } else {
+        cmd!(sh, "cargo nextest run --workspace --no-tests pass --color=always")
+            .ignore_status()
+            .output()?
+            .into()
+    };
 
     // E2E-тесты (если крейт e2e-tests есть в воркспейсе)
-    let crates = workspace_crates(sh)?;
-    let e2e_tests_result = if crates.iter().any(|c| c == "e2e-tests") {
+    let e2e_tests_result = if has_e2e_tests(&crates) {
         eprintln!("  Сборка бинарников...");
         cmd!(sh, "cargo build --workspace --color=always").run()?;
         eprintln!("  Запуск e2e-тестов...");
@@ -287,10 +303,19 @@ fn docs_ci(sh: &Shell) -> Result<()> {
     };
 
     eprintln!("  Запуск doctests...");
-    let doctests_result = cmd!(sh, "cargo +nightly test --workspace --doc --color=always")
-        .ignore_status()
-        .output()?
-        .into();
+    let doctests_result = if has_doc_tests(sh)? {
+        cmd!(sh, "cargo +nightly test --workspace --doc --color=always")
+            .ignore_status()
+            .output()?
+            .into()
+    } else {
+        eprintln!("  Пропуск doctests: цели не найдены");
+        CiCheckResult {
+            success: true,
+            stdout: String::new(),
+            stderr: "Пропущено: в воркспейсе нет целей для doc-тестов\n".to_string(),
+        }
+    };
 
     let timestamp = now_iso();
 
@@ -448,16 +473,35 @@ struct CargoMetadata {
 #[derive(Deserialize)]
 struct Package {
     name: String,
+    #[serde(default)]
+    targets: Vec<Target>,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    #[serde(default)]
+    doctest: bool,
 }
 
 /// Получить список крейтов воркспейса.
 fn workspace_crates(sh: &Shell) -> Result<Vec<String>> {
-    let output = cmd!(sh, "cargo metadata --no-deps --format-version 1").read()?;
-    let metadata: CargoMetadata =
-        serde_json::from_str(&output).context("не удалось распарсить cargo metadata")?;
-
+    let metadata = workspace_metadata(sh)?;
     let crates: Vec<String> = metadata.packages.into_iter().map(|p| p.name).collect();
     Ok(crates)
+}
+
+fn workspace_metadata(sh: &Shell) -> Result<CargoMetadata> {
+    let output = cmd!(sh, "cargo metadata --no-deps --format-version 1").read()?;
+    serde_json::from_str(&output).context("не удалось распарсить cargo metadata")
+}
+
+fn has_e2e_tests(crates: &[String]) -> bool {
+    crates.iter().any(|c| c == "e2e-tests")
+}
+
+fn has_doc_tests(sh: &Shell) -> Result<bool> {
+    let metadata = workspace_metadata(sh)?;
+    Ok(metadata.packages.iter().any(|package| package.targets.iter().any(|target| target.doctest)))
 }
 
 /// Получить корневую директорию проекта.
