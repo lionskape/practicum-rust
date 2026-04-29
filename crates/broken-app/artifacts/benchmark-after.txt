@@ -1,0 +1,4 @@
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running `/tmp/practicum-bench-after/broken-app/target/release/bench_algo`
+fib_32_x1: 83ns
+dedup_4000_x1: 54.583µs

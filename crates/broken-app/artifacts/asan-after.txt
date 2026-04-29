@@ -1,0 +1,30 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running unittests src/lib.rs (/tmp/practicum-asan/broken-app/target/debug/deps/broken_app-8447461e4d12b69f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/demo.rs (/tmp/practicum-asan/broken-app/target/debug/deps/demo-67aeccab7264dc61)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/integration.rs (/tmp/practicum-asan/broken-app/target/debug/deps/integration-546b0d66a50c43a5)
+
+running 11 tests
+test averages_only_positive ... ok
+test counts_non_zero_bytes ... ok
+test fib_small_numbers ... ok
+test dedup_preserves_uniques ... ok
+test average_without_positive_values_is_zero ... ok
+test normalize_simple ... ok
+test sums_empty_slice_without_reading_past_end ... ok
+test normalize_removes_all_whitespace ... ok
+test sums_even_numbers ... ok
+test unsafe_helper_returns_original_value ... ok
+test race_increment_counts_every_update ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

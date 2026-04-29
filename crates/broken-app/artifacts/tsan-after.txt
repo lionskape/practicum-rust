@@ -1,0 +1,6 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running unittests src/lib.rs (/tmp/practicum-asan/broken-app/target/aarch64-apple-darwin/debug/deps/broken_app-064e38f20f5fce28)
+error: test failed, to rerun pass `--lib`
+
+Caused by:
+  process didn't exit successfully: `/tmp/practicum-asan/broken-app/target/aarch64-apple-darwin/debug/deps/broken_app-064e38f20f5fce28` (signal: 11, SIGSEGV: invalid memory reference)

@@ -1,0 +1,181 @@
+info: syncing channel updates for nightly-aarch64-unknown-linux-gnu
+info: latest update on 2026-04-28 for version 1.97.0-nightly (52b6e2c20 2026-04-27)
+info: downloading 5 components
+cargo 1.97.0-nightly (eb9b60f1f 2026-04-24)
+Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+Get:4 http://deb.debian.org/debian bookworm/main arm64 Packages [8691 kB]
+Get:5 http://deb.debian.org/debian bookworm-updates/main arm64 Packages [6936 B]
+Get:6 http://deb.debian.org/debian-security bookworm-security/main arm64 Packages [293 kB]
+Fetched 9245 kB in 4s (2349 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  libc6-dbg
+Suggested packages:
+  valgrind-mpi kcachegrind alleyoop valkyrie
+Recommended packages:
+  valgrind-dbg gdb
+The following NEW packages will be installed:
+  libc6-dbg valgrind
+0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+Need to get 14.5 MB of archives.
+After this operation, 53.0 MB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bookworm/main arm64 libc6-dbg arm64 2.36-9+deb12u13 [6524 kB]
+Get:2 http://deb.debian.org/debian bookworm/main arm64 valgrind arm64 1:3.19.0-1 [7945 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 14.5 MB in 1s (18.7 MB/s)
+Selecting previously unselected package libc6-dbg:arm64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 23281 files and directories currently installed.)
+Preparing to unpack .../libc6-dbg_2.36-9+deb12u13_arm64.deb ...
+Unpacking libc6-dbg:arm64 (2.36-9+deb12u13) ...
+Selecting previously unselected package valgrind.
+Preparing to unpack .../valgrind_1%3a3.19.0-1_arm64.deb ...
+Unpacking valgrind (1:3.19.0-1) ...
+Setting up libc6-dbg:arm64 (2.36-9+deb12u13) ...
+Setting up valgrind (1:3.19.0-1) ...
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded either v1.15.0
+  Downloaded quote v1.0.45
+  Downloaded cfg-if v1.0.4
+  Downloaded plotters-backend v0.3.7
+  Downloaded same-file v1.0.6
+  Downloaded cast v0.3.0
+  Downloaded ciborium-ll v0.2.2
+  Downloaded clap_lex v1.1.0
+  Downloaded ciborium-io v0.2.2
+  Downloaded is-terminal v0.4.17
+  Downloaded plotters-svg v0.3.7
+  Downloaded anstyle v1.0.14
+  Downloaded autocfg v1.5.0
+  Downloaded itoa v1.0.18
+  Downloaded walkdir v2.5.0
+  Downloaded anes v0.1.6
+  Downloaded crossbeam-deque v0.8.6
+  Downloaded zmij v1.0.21
+  Downloaded criterion-plot v0.5.0
+  Downloaded once_cell v1.21.4
+  Downloaded oorandom v11.1.5
+  Downloaded tinytemplate v1.2.1
+  Downloaded ciborium v0.2.2
+  Downloaded serde_derive v1.0.228
+  Downloaded crossbeam-utils v0.8.21
+  Downloaded half v2.7.1
+  Downloaded proc-macro2 v1.0.106
+  Downloaded num-traits v0.2.19
+  Downloaded clap v4.6.1
+  Downloaded crossbeam-epoch v0.9.18
+  Downloaded serde_core v1.0.228
+  Downloaded unicode-ident v1.0.24
+  Downloaded rayon-core v1.13.0
+  Downloaded memchr v2.8.0
+  Downloaded serde v1.0.228
+  Downloaded criterion v0.5.1
+  Downloaded itertools v0.10.5
+  Downloaded zerocopy-derive v0.8.48
+  Downloaded clap_builder v4.6.0
+  Downloaded regex v1.12.3
+  Downloaded plotters v0.3.7
+  Downloaded serde_json v1.0.149
+  Downloaded aho-corasick v1.1.4
+  Downloaded rayon v1.12.0
+  Downloaded syn v2.0.117
+  Downloaded zerocopy v0.8.48
+  Downloaded regex-syntax v0.8.10
+  Downloaded regex-automata v0.4.14
+  Downloaded libc v0.2.186
+   Compiling proc-macro2 v1.0.106
+   Compiling quote v1.0.45
+   Compiling unicode-ident v1.0.24
+   Compiling crossbeam-utils v0.8.21
+   Compiling serde_core v1.0.228
+   Compiling zerocopy v0.8.48
+   Compiling autocfg v1.5.0
+   Compiling zmij v1.0.21
+   Compiling serde v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling serde_json v1.0.149
+   Compiling libc v0.2.186
+   Compiling rayon-core v1.13.0
+   Compiling either v1.15.0
+   Compiling plotters-backend v0.3.7
+   Compiling memchr v2.8.0
+   Compiling clap_lex v1.1.0
+   Compiling regex-syntax v0.8.10
+   Compiling ciborium-io v0.2.2
+   Compiling itoa v1.0.18
+   Compiling anstyle v1.0.14
+   Compiling plotters-svg v0.3.7
+   Compiling itertools v0.10.5
+   Compiling same-file v1.0.6
+   Compiling num-traits v0.2.19
+   Compiling clap_builder v4.6.0
+   Compiling cast v0.3.0
+   Compiling walkdir v2.5.0
+   Compiling once_cell v1.21.4
+   Compiling anes v0.1.6
+   Compiling oorandom v11.1.5
+   Compiling broken-app v0.1.0 (/workspace/crates/broken-app)
+   Compiling crossbeam-epoch v0.9.18
+   Compiling syn v2.0.117
+   Compiling crossbeam-deque v0.8.6
+   Compiling is-terminal v0.4.17
+   Compiling regex-automata v0.4.14
+   Compiling plotters v0.3.7
+   Compiling rayon v1.12.0
+   Compiling criterion-plot v0.5.0
+   Compiling clap v4.6.1
+   Compiling regex v1.12.3
+   Compiling zerocopy-derive v0.8.48
+   Compiling serde_derive v1.0.228
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.5.1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.22s
+  Executable unittests src/lib.rs (/tmp/practicum-target/debug/deps/broken_app-8bbcff1b08110797)
+  Executable unittests src/bin/demo.rs (/tmp/practicum-target/debug/deps/demo-4f1e4580f1505217)
+  Executable tests/integration.rs (/tmp/practicum-target/debug/deps/integration-ca97b09b7f17c398)
+test binary: /tmp/practicum-target/debug/deps/integration-ca97b09b7f17c398
+==1== Memcheck, a memory error detector
+==1== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.
+==1== Using Valgrind-3.19.0 and LibVEX; rerun with -h for copyright info
+==1== Command: /tmp/practicum-target/debug/deps/integration-ca97b09b7f17c398 --test-threads=1
+==1== 
+
+running 11 tests
+test average_without_positive_values_is_zero ... ok
+test averages_only_positive ... ok
+test counts_non_zero_bytes ... ok
+test dedup_preserves_uniques ... ok
+test fib_small_numbers ... ok
+test normalize_removes_all_whitespace ... ok
+test normalize_simple ... ok
+test race_increment_counts_every_update ... ok
+test sums_empty_slice_without_reading_past_end ... ok
+test sums_even_numbers ... ok
+test unsafe_helper_returns_original_value ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+==1== 
+==1== HEAP SUMMARY:
+==1==     in use at exit: 592 bytes in 2 blocks
+==1==   total heap usage: 512 allocs, 510 frees, 58,278 bytes allocated
+==1== 
+==1== LEAK SUMMARY:
+==1==    definitely lost: 0 bytes in 0 blocks
+==1==    indirectly lost: 0 bytes in 0 blocks
+==1==      possibly lost: 48 bytes in 1 blocks
+==1==    still reachable: 544 bytes in 1 blocks
+==1==         suppressed: 0 bytes in 0 blocks
+==1== Reachable blocks (those to which a pointer was found) are not shown.
+==1== To see them, rerun with: --leak-check=full --show-leak-kinds=all
+==1== 
+==1== For lists of detected and suppressed errors, rerun with: -s
+==1== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
