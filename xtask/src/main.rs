@@ -196,21 +196,49 @@ fn docs_rustdoc() -> Result<()> {
     // Создание директории api_dir
     fs::create_dir_all(&api_dir)?;
 
-    // Получение списка крейтов воркспейса
-    let crates = workspace_crates(&sh)?;
-    eprintln!("Найдены крейты: {}", crates.join(", "));
+    // Получение списка пакетов воркспейса
+    let metadata = workspace_metadata(&sh)?;
+    let crate_names: Vec<&str> =
+        metadata.packages.iter().map(|package| package.name.as_str()).collect();
+    eprintln!("Найдены крейты: {}", crate_names.join(", "));
 
-    for crate_name in &crates {
+    for package in &metadata.packages {
+        let crate_name = &package.name;
         eprintln!("Генерация документации для {crate_name}...");
 
-        // Генерация rustdoc JSON
-        cmd!(
-            sh,
-            "cargo +nightly rustdoc -p {crate_name} -- -Z unstable-options --output-format json"
-        )
-        .run()?;
+        let Some(target) = package
+            .targets
+            .iter()
+            .find(|target| target.doc && target.kind.iter().any(|kind| kind == "lib"))
+            .or_else(|| {
+                package
+                    .targets
+                    .iter()
+                    .find(|target| target.doc && target.kind.iter().any(|kind| kind == "bin"))
+            })
+        else {
+            eprintln!("  Предупреждение: документируемая цель не найдена для {crate_name}");
+            continue;
+        };
 
-        let json_path = project.join(format!("target/doc/{crate_name}.json"));
+        let target_name = &target.name;
+
+        // Генерация rustdoc JSON
+        if target.kind.iter().any(|kind| kind == "lib") {
+            cmd!(
+                sh,
+                "cargo +nightly rustdoc -p {crate_name} --lib -- -Z unstable-options --output-format json"
+            )
+            .run()?;
+        } else {
+            cmd!(
+                sh,
+                "cargo +nightly rustdoc -p {crate_name} --bin {target_name} -- -Z unstable-options --output-format json"
+            )
+            .run()?;
+        }
+
+        let json_path = project.join(format!("target/doc/{target_name}.json"));
         if !json_path.exists() {
             eprintln!("  Предупреждение: JSON не найден для {crate_name}");
             continue;
@@ -479,6 +507,11 @@ struct Package {
 
 #[derive(Deserialize)]
 struct Target {
+    name: String,
+    #[serde(default)]
+    kind: Vec<String>,
+    #[serde(default)]
+    doc: bool,
     #[serde(default)]
     doctest: bool,
 }

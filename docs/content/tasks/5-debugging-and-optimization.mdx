@@ -1,0 +1,250 @@
+# Проект модуля 5. Поиск ошибок и оптимизация
+
+## Инфраструктура проекта
+
+В этом репозитории решение размещено в `crates/broken-app`. Эталонный проект из задания
+сохранён рядом в `crates/reference-app`, но исключён из workspace, чтобы CI не требовал менять
+исходный reference-код.
+
+Ссылки из исходного задания:
+
+- [broken-app](https://code.s3.yandex.net/middle-rust-blockchain/broken-app.zip)
+- [reference-app](https://code.s3.yandex.net/middle-rust-blockchain/reference-app.zip)
+
+## Описание
+
+Цель проекта - провести динамический анализ Rust-кода, найти дефекты корректности и безопасности,
+исправить их, затем ускорить горячие участки и подтвердить результат тестами и замерами.
+
+В `broken-app` изначально есть несколько классов проблем:
+
+- выход за границы среза в unsafe-коде;
+- утечка памяти;
+- use-after-free;
+- неверная бизнес-логика;
+- гонка данных при работе с потоками;
+- неэффективные алгоритмы и лишние аллокации.
+
+## Что нужно сделать
+
+1. Скачать `broken-app` и `reference-app`.
+2. Запустить `cargo check` и тесты в `broken-app`, зафиксировать исходные падения.
+3. Собрать `reference-app` и использовать его как эталон поведения.
+4. Найти причины дефектов с помощью тестов, Miri, отладчика, Valgrind и sanitizer-ов, насколько это
+   позволяет окружение.
+5. Добавить регрессионные тесты для найденных проблем.
+6. Исправить UB, утечки, логические ошибки и гонку данных.
+7. Найти горячие участки, снять бенчмарки до оптимизации.
+8. Выполнить минимум две оптимизации: алгоритмическую и микрооптимизацию.
+9. Повторить тесты, Miri, sanitizer-ы и бенчмарки после исправлений.
+10. Сохранить артефакты прогонов в репозитории.
+
+## Решение в этом репозитории
+
+Исправленный crate:
+
+- `crates/broken-app`
+
+Сохранённый эталон:
+
+- `crates/reference-app`
+
+Артефакты:
+
+- `crates/broken-app/artifacts/cargo-test-after.txt`
+- `crates/broken-app/artifacts/miri-after.txt`
+- `crates/broken-app/artifacts/asan-after.txt`
+- `crates/broken-app/artifacts/tsan-after.txt`
+- `crates/broken-app/artifacts/valgrind-after.txt`
+- `crates/broken-app/artifacts/benchmark-before.txt`
+- `crates/broken-app/artifacts/benchmark-after.txt`
+- `crates/broken-app/artifacts/REPORT.md`
+
+## Проверка
+
+Основные команды:
+
+```bash
+cargo test -p broken-app
+cargo +nightly miri test -p broken-app
+cargo bench -p broken-app --bench baseline
+cargo ci
+```
+
+Valgrind выполнен через Linux-контейнер Docker. TSan на nightly macOS/aarch64 падает при запуске
+instrumented test binary; это ограничение зафиксировано отдельным артефактом. Miri, обычные тесты,
+ASan для ключевых тестов и Valgrind выполнены.
+
+## Инструменты отладки и анализа
+
+### Быстрая проверка корректности
+
+```bash
+cargo check -p broken-app
+cargo test -p broken-app
+cargo ci
+```
+
+На что смотреть:
+
+- `cargo check` должен завершаться без compile errors.
+- `cargo test -p broken-app` должен показывать `11 passed`.
+- `cargo ci` дополнительно проверяет форматирование, clippy с `-D warnings`, unit-тесты и doctests.
+- Если тест падает, сначала смотрите имя теста и assertion message, затем переходите к функции,
+  которую этот тест вызывает.
+
+### Сравнение с эталоном
+
+```bash
+cargo test --manifest-path crates/reference-app/Cargo.toml
+cargo test -p broken-app
+```
+
+На что смотреть:
+
+- `reference-app` показывает ожидаемое поведение для базовых сценариев.
+- Если тест в `broken-app` расходится с `reference-app`, чинить нужно причину расхождения,
+  а не подгонять тест.
+- Эталонный `reference-app` сохранён неизменённым и исключён из workspace.
+
+### Miri
+
+```bash
+rustup component add --toolchain nightly miri
+cargo +nightly miri test -p broken-app
+```
+
+На что смотреть:
+
+- Хороший результат: все тесты проходят, в выводе нет сообщений `Undefined Behavior`,
+  `out-of-bounds`, `dangling`, `use-after-free`, `data race`.
+- Miri особенно полезен для unsafe-кода: он ловит чтение за границами среза, нарушение aliasing,
+  обращение к освобождённой памяти и некорректную работу с указателями.
+- Если Miri указывает строку в `unsafe`-блоке, исправление обычно должно убирать raw pointer
+  из обычной логики или сужать `unsafe` до минимального проверяемого участка.
+
+### Valgrind через Docker
+
+На macOS удобнее запускать Valgrind в Linux-контейнере. Нужен запущенный Docker/OrbStack.
+
+```bash
+docker run --rm -v "$PWD":/workspace -w /workspace rust:bookworm bash -lc '
+  set -euo pipefail
+  export PATH=/usr/local/cargo/bin:$PATH
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends valgrind
+  CARGO_TARGET_DIR=/tmp/practicum-target cargo test -p broken-app --tests --no-run
+  test_bin=$(find /tmp/practicum-target/debug/deps -maxdepth 1 -type f -name "integration-*" -perm /111 | head -n 1)
+  valgrind --leak-check=full \
+    --show-leak-kinds=definite,indirect \
+    --errors-for-leak-kinds=definite,indirect \
+    --error-exitcode=1 \
+    "$test_bin" --test-threads=1
+'
+```
+
+На что смотреть:
+
+- Хороший результат: тесты проходят, `definitely lost: 0`, `indirectly lost: 0`,
+  `ERROR SUMMARY: 0`.
+- `definitely lost` и `indirectly lost` указывают на реальные утечки, которые нужно исправлять.
+- `Invalid read`, `Invalid write`, `Use of uninitialised value` указывают на ошибки памяти.
+- `possibly lost` или `still reachable` могут приходить из Rust test harness или стандартной
+  библиотеки. Если стек полностью внутри `std`/`test`, это не обязательно дефект приложения.
+  Для финальной проверки приложения важнее `definitely lost`, `indirectly lost` и `ERROR SUMMARY`.
+
+### AddressSanitizer
+
+ASan полезен для поиска out-of-bounds и use-after-free. На macOS runtime должен загрузиться до
+инструментированного бинарника, поэтому иногда нужен `DYLD_INSERT_LIBRARIES`.
+
+```bash
+ASAN_LIB="$(rustc +nightly --print sysroot)/lib/rustlib/$(rustc +nightly -vV | sed -n 's/^host: //p')/lib/librustc-nightly_rt.asan.dylib"
+DYLD_INSERT_LIBRARIES="$ASAN_LIB" \
+RUSTFLAGS="-Zsanitizer=address" \
+cargo +nightly test -p broken-app --tests
+```
+
+На что смотреть:
+
+- Хороший результат: тесты проходят, нет блоков `ERROR: AddressSanitizer`.
+- Проблемы выглядят как `heap-use-after-free`, `stack-buffer-overflow`, `heap-buffer-overflow`.
+- Если sanitizer падает при сборке proc-macro/dev-dependency, проверьте ключевые тесты в slim-копии
+  без bench/dev-deps или запускайте ASan в Linux-среде.
+
+### ThreadSanitizer
+
+TSan нужен для поиска гонок данных. В этом окружении nightly macOS/aarch64 падает до запуска
+тестов; на Linux-компьютере или в совместимом контейнере команда обычно выглядит так:
+
+```bash
+RUSTFLAGS="-Zsanitizer=thread" \
+cargo +nightly test -Zbuild-std --target aarch64-unknown-linux-gnu -p broken-app --tests
+```
+
+На что смотреть:
+
+- Хороший результат: тесты проходят, нет `WARNING: ThreadSanitizer: data race`.
+- Любой `data race` нужно разбирать по двум stack trace: где поток пишет и где другой поток читает
+  или пишет ту же память.
+- В `broken-app` гонка устранена заменой `static mut` на `AtomicU64`.
+
+### Отладчик `lldb`
+
+Отладчик полезен, когда тест падает по логике, а не по памяти.
+
+```bash
+cargo test -p broken-app --test integration --no-run
+lldb target/debug/deps/integration-*
+```
+
+Внутри `lldb`:
+
+```text
+breakpoint set --name broken_app::average_positive
+run --test-threads=1 averages_only_positive
+bt
+frame variable
+next
+```
+
+На что смотреть:
+
+- `bt` показывает путь вызовов до ошибки.
+- `frame variable` показывает текущие значения локальных переменных.
+- Если переменная становится неверной раньше места падения, поднимайтесь выше по call stack и
+  ищите источник неправильного значения.
+
+### Бенчмарки и профилирование
+
+```bash
+cargo bench -p broken-app --bench baseline
+cargo run -p broken-app --release --bin demo
+```
+
+На что смотреть:
+
+- Сравнивайте одинаковые входы до и после оптимизации.
+- Алгоритмическая оптимизация должна менять порядок роста или структуру данных, например
+  рекурсивный Fibonacci на итеративный, линейный поиск дублей на `HashSet`.
+- Микрооптимизация должна уменьшать лишние аллокации, копирования или сортировки в цикле.
+- Если время нестабильно, запускайте несколько прогонов и смотрите медиану/порядок величины,
+  а не единичный лучший результат.
+
+### Артефакты
+
+После каждого важного прогона сохраняйте лог в `crates/broken-app/artifacts/`:
+
+```bash
+cargo test -p broken-app > crates/broken-app/artifacts/cargo-test-after.txt 2>&1
+cargo +nightly miri test -p broken-app > crates/broken-app/artifacts/miri-after.txt 2>&1
+cargo bench -p broken-app --bench baseline > crates/broken-app/artifacts/benchmark-after.txt 2>&1
+```
+
+В отчёте фиксируйте:
+
+- какая проблема найдена;
+- каким инструментом подтверждена;
+- какой тест защищает от регрессии;
+- какие замеры были до и после;
+- какие ограничения окружения помешали запустить конкретный инструмент.

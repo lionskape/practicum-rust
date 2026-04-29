@@ -10,8 +10,10 @@ practicum-rust/
 └── xtask/  # build, test, and documentation automation
 ```
 
-At the moment the workspace contains only the `xtask` crate. New assignment crates can be added
-later and registered in the root `Cargo.toml`.
+Current assignment crates:
+
+- `crates/broken-app` - fixed module 5 debugging and optimization project.
+- `crates/reference-app` - unchanged reference project, kept outside the workspace via `exclude`.
 
 ## Commands
 
