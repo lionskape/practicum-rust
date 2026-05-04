@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/broken-app", "xtask"]
-exclude = ["crates/reference-app"]
+members = ["xtask"]
 
 [workspace.package]
 edition = "2024"
