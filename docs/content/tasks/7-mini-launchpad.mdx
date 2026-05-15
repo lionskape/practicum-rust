@@ -1,0 +1,91 @@
+# Проект модуля 7. Mini-Launchpad
+
+## Инфраструктура проекта
+
+В этом репозитории решение размещено в `crates/mini-launchpad`. Проект взят из исходного
+задания Практикума и сохранён как самостоятельный Solana/Anchor-проект с собственными папками
+`program/`, `backend/` и `frontend/`.
+
+Исходный архив задания:
+
+- [rust-solana-launchpad-task.zip](https://code.s3.yandex.net/middle-rust-blockchain/rust-solana-launchpad-task.zip)
+
+Проект не подключён к корневому Cargo workspace: внутри есть отдельные Rust/Node контуры и
+Makefile, а деплой требует Solana/Anchor CLI, keypair и настройки сети.
+
+## Описание
+
+Цель проекта - починить, развернуть и запустить Mini-Launchpad: систему выпуска токенов
+с комиссией в USD, которая использует on-chain оракул цены SOL/USD и off-chain backend-сервис.
+
+Mini-Launchpad состоит из трёх компонентов:
+
+- `program/programs/sol_usd_oracle` - Anchor-программа оракула цены SOL/USD;
+- `program/programs/token_minter` - Anchor-программа выпуска токенов и списания комиссии;
+- `backend` - Rust-сервис, который обновляет цену в оракуле и слушает события создания токенов;
+- `frontend` - Remix-приложение для минта токенов через кошелёк.
+
+## Что нужно сделать
+
+В исходном проекте оставлены учебные поломки:
+
+- `todo!()` в обновлении состояния оракула;
+- `todo!()` в расчёте комиссии минта в lamports;
+- `todo!()` в backend helper для преобразования цены в fixed-point с 6 знаками;
+- намеренно неверные ожидания в LiteSVM и backend unit-тестах;
+- некорректная локальная ссылка backend на учебный путь `../program-task`.
+
+После исправлений нужно собрать и проверить localnet-контур, затем задеплоить обе программы
+в Devnet под собственными `program_id`, запустить backend и сминтить токен через frontend.
+
+## Решение в этом репозитории
+
+Исправленный проект:
+
+- `crates/mini-launchpad`
+
+Основные изменения:
+
+- оракул сохраняет новую цену и слот обновления в `OracleState`;
+- minter рассчитывает комиссию как `mint_fee_usd * LAMPORTS_PER_SOL / sol_usd_price` с
+  проверкой переполнения;
+- backend парсит десятичную цену в fixed-6 формат, дополняет дробную часть нулями и
+  отбрасывает лишние знаки без округления;
+- тесты обновлены под фактические `PRICE_DECIMALS = 6` и правильную формулу комиссии;
+- зависимость backend на локальную программу оракула указывает на фактическую папку `../program`.
+
+## Проверка
+
+Локально проверены команды:
+
+```bash
+cd crates/mini-launchpad/program && cargo test --workspace
+cd crates/mini-launchpad/backend && cargo test
+cd crates/mini-launchpad/frontend && npm install && npm test
+```
+
+Полный LiteSVM/Anchor-контур требует установленный `anchor` CLI:
+
+```bash
+cd crates/mini-launchpad/program
+yarn install
+anchor build
+yarn run ts-mocha -p ./tsconfig.json -t 1000000 "tests/**/*.ts"
+```
+
+Полный запуск localnet:
+
+```bash
+cd crates/mini-launchpad
+make install
+make validator
+make build
+make deploy
+make init
+make backend
+make frontend
+```
+
+Для сдачи проекта в Практикуме дополнительно нужно задеплоить `sol_usd_oracle` и `token_minter`
+в Devnet, записать `program_id`, PDA состояния оракула и добавить ссылки на успешные транзакции
+минта токенов в README проекта.
