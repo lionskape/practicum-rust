@@ -1,0 +1,26 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anchor-lang = "0.32.1"
+anyhow = "1.0.93"
+base64 = "0.22.1"
+dotenvy = "0.15.7"
+futures = "0.3.31"
+regex = "1.11.1"
+reqwest = { version = "0.11.27", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0.214", features = ["derive"] }
+serde_json = "1.0.132"
+solana-client = "2.1.13"
+solana-sdk = "2.1.13"
+solana-transaction-status = "2.1.13"
+solana-rpc-client-types = "2.3.13"
+sol_usd_oracle = { package = "sol-usd-oracle", path = "../program/programs/sol_usd_oracle", features = ["no-entrypoint"] }
+token_minter = { package = "token-minter", path = "../program/programs/token_minter", features = ["no-entrypoint"] }
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread", "time"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
+
+[workspace]
