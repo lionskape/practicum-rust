@@ -41,16 +41,20 @@
 
 На фронте есть переключатель **Localnet / Devnet**. Для тестов на devnet:
 
-1. Переключить CLI на devnet и пополнить кошелёк:
+1. Пополнить deploy-кошелёк Devnet:
    ```bash
-   solana config set --url devnet
-   solana airdrop 2
+   solana balance --url https://api.devnet.solana.com program/target/devnet/id.json
    ```
+   Для чистого деплоя двух программ нужно примерно 5 Devnet SOL. Если CLI-аирдроп
+   упирается в rate limit, используйте https://faucet.solana.com/ с GitHub-login или
+   альтернативный faucet. Адрес deploy-кошелька: `4GJEK5HnFtpzoKHmPJZ8ab5jqr5FhUp1XgoDThGPoqmo`.
 
 2. Собрать и задеплоить на devnet:
    ```bash
    make deploy-devnet
    ```
+   По умолчанию Makefile использует `program/target/devnet/id.json` и передаёт
+   `--use-rpc --max-sign-attempts 10`, чтобы write-транзакции деплоя шли через RPC.
 
 3. Инициализировать оракул и минтер на devnet (один раз):
    ```bash
@@ -100,9 +104,45 @@
 - `token_minter`: `95S6rgKz3RGSwgLiSa7sFkW5iY68TLCzj5ezyNMvQrCc`
 - `ORACLE_STATE_PUBKEY`: `34Z57smo7zcABuf5Za3KnHChK2QWLSLCSf3obsx9p2gU`
 
-Devnet deployment uses the same program IDs, but requires a funded devnet wallet. During local
-verification, `solana airdrop` for wallet `4GJEK5HnFtpzoKHmPJZ8ab5jqr5FhUp1XgoDThGPoqmo`
-returned faucet rate-limit errors, so Devnet transaction links are not recorded here yet.
+## Проверенный Devnet deploy
+
+Cluster: Solana Devnet. Deploy wallet / upgrade authority:
+`4GJEK5HnFtpzoKHmPJZ8ab5jqr5FhUp1XgoDThGPoqmo`.
+
+- Program ID оракула (`sol_usd_oracle`): `3SyERpqhcx5V7z1wc8pwpCftbNhVPCfcW1BNtM5baUm8`
+  ([Solscan](https://solscan.io/account/3SyERpqhcx5V7z1wc8pwpCftbNhVPCfcW1BNtM5baUm8?cluster=devnet))
+- Program ID launchpad (`token_minter`): `95S6rgKz3RGSwgLiSa7sFkW5iY68TLCzj5ezyNMvQrCc`
+  ([Solscan](https://solscan.io/account/95S6rgKz3RGSwgLiSa7sFkW5iY68TLCzj5ezyNMvQrCc?cluster=devnet))
+- PDA оракула (`ORACLE_STATE_PUBKEY`): `34Z57smo7zcABuf5Za3KnHChK2QWLSLCSf3obsx9p2gU`
+  ([Solscan](https://solscan.io/account/34Z57smo7zcABuf5Za3KnHChK2QWLSLCSf3obsx9p2gU?cluster=devnet))
+
+Deploy transactions:
+
+- Oracle deploy:
+  [`36QstCLPcrAPCD7wfYgBc3LnCJjpi6hE4QEjnamSy6myuTakxKWmpi4rpxPrqarAfraBQDKF8E54Vyv8BdPbCucw`](https://solscan.io/tx/36QstCLPcrAPCD7wfYgBc3LnCJjpi6hE4QEjnamSy6myuTakxKWmpi4rpxPrqarAfraBQDKF8E54Vyv8BdPbCucw?cluster=devnet)
+- Launchpad deploy:
+  [`2CYGj9KR7qkmKCoe9sf6JddSUj7FjqhWm4BNo4cRRycTKaGy4a8Aw3Un7ANoW1vKHgmxLjUpzo3jLBKKrUA9mDvU`](https://solscan.io/tx/2CYGj9KR7qkmKCoe9sf6JddSUj7FjqhWm4BNo4cRRycTKaGy4a8Aw3Un7ANoW1vKHgmxLjUpzo3jLBKKrUA9mDvU?cluster=devnet)
+
+Initialization transactions:
+
+- Initialize oracle:
+  [`dR2Cm514AD4MXkBckz41xnaWa3ew5wYakxYXXoA3K5ZrhRkjAx6hRemJGTyprZrbJ6f1XsvJMf8cC2ydH8U5fTW`](https://solscan.io/tx/dR2Cm514AD4MXkBckz41xnaWa3ew5wYakxYXXoA3K5ZrhRkjAx6hRemJGTyprZrbJ6f1XsvJMf8cC2ydH8U5fTW?cluster=devnet)
+- Set initial price:
+  [`54mkcusrj8hBvAG4vNVb7P93tU5o4kqKowPGckGmZAeYbJobnF3aXHecJMXEs4JeAsKqRguC1QZF2ddVGnPvY45H`](https://solscan.io/tx/54mkcusrj8hBvAG4vNVb7P93tU5o4kqKowPGckGmZAeYbJobnF3aXHecJMXEs4JeAsKqRguC1QZF2ddVGnPvY45H?cluster=devnet)
+- Initialize launchpad:
+  [`4Ry1yHDNpG87TNkPc2LtYfpzf1PuaXdvemyfxWopM4fsGM6ikwwu8dDPqSY5nLpzPNDe4TvhXvNqFSrcr2f7nrAs`](https://solscan.io/tx/4Ry1yHDNpG87TNkPc2LtYfpzf1PuaXdvemyfxWopM4fsGM6ikwwu8dDPqSY5nLpzPNDe4TvhXvNqFSrcr2f7nrAs?cluster=devnet)
+
+Mint transactions on Devnet:
+
+- Mint 1:
+  [`3skuUwr6xyHyEzghqtUM3H3TvQHznbU7xg9aST1ufDCCEsMAJn8rE17JdWsaA4ya3UGaVs1D8JDBoeTPkyXmCsnN`](https://solscan.io/tx/3skuUwr6xyHyEzghqtUM3H3TvQHznbU7xg9aST1ufDCCEsMAJn8rE17JdWsaA4ya3UGaVs1D8JDBoeTPkyXmCsnN?cluster=devnet),
+  mint `VLbuMMGn7uoTmC1A3b8Wg3GTd47SBxEHWzVPNGTxEAL`
+- Mint 2:
+  [`2iTvfHseMKYRB8fsC3m7NcnjH8MHvL57nu8HRwMCtHhNEEYkFEri83JzJQj9QYRhxc6rgjMgUWZLhANSihVvs6V`](https://solscan.io/tx/2iTvfHseMKYRB8fsC3m7NcnjH8MHvL57nu8HRwMCtHhNEEYkFEri83JzJQj9QYRhxc6rgjMgUWZLhANSihVvs6V?cluster=devnet),
+  mint `ERsJWzBwQLzzXL9mMD4q2NdRg7J9wNm3U94TEpriMS2E`
+- Mint 3:
+  [`4CJjTHV2QuxEPibJ4HiPoPRJWnBdFajWWQ7GmNVsatbgt4J3fDGKbro2CsrgR9f7QqM6jgAo2wdUoGFSy4ega5ur`](https://solscan.io/tx/4CJjTHV2QuxEPibJ4HiPoPRJWnBdFajWWQ7GmNVsatbgt4J3fDGKbro2CsrgR9f7QqM6jgAo2wdUoGFSy4ega5ur?cluster=devnet),
+  mint `4mEzMUb5v32TfeMwf7mKdzSojdeQTbEdUcPLqsRK9jhJ`
 
 ## Проверенный localnet metadata mint
 

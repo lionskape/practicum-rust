@@ -3,6 +3,8 @@
 .PHONY: install validator validator-metaplex sync-program-keys build deploy deploy-devnet deploy-oracle-devnet deploy-minter-devnet init init-devnet mint mint-metaplex mint-devnet deploy-oracle deploy-minter backend backend-devnet frontend kill-frontend test
 
 PROGRAM_KEYPAIR_DIR := program/deploy-keypairs
+DEVNET_WALLET ?= target/devnet/id.json
+DEVNET_DEPLOY_ARGS ?= --use-rpc --max-sign-attempts 10
 
 install:
 	cd program && yarn install
@@ -27,15 +29,15 @@ build: sync-program-keys
 deploy: build
 	cd program && anchor deploy --provider.cluster localnet
 
-# Devnet: переключись (solana config set-url devnet), пополни (solana airdrop 2), затем деплой обоих контрактов:
+# Devnet: пополни program/$(DEVNET_WALLET), затем задеплой оба контракта:
 deploy-devnet: deploy-oracle-devnet deploy-minter-devnet
 
 # Devnet: деплой только оракула или только минтера
 deploy-oracle-devnet: build
-	cd program && anchor deploy --program-name sol_usd_oracle --provider.cluster devnet
+	cd program && NO_DNA=1 anchor deploy --program-name sol_usd_oracle --provider.cluster devnet --provider.wallet $(DEVNET_WALLET) -- $(DEVNET_DEPLOY_ARGS)
 
 deploy-minter-devnet: build
-	cd program && anchor deploy --program-name token_minter --provider.cluster devnet
+	cd program && NO_DNA=1 anchor deploy --program-name token_minter --provider.cluster devnet --provider.wallet $(DEVNET_WALLET) -- $(DEVNET_DEPLOY_ARGS)
 
 # Инициализация оракула и минтера (localnet по умолчанию)
 init:
@@ -43,7 +45,7 @@ init:
 
 # Инициализация на devnet (после make deploy-devnet)
 init-devnet:
-	cd program && RPC_URL=https://api.devnet.solana.com node scripts/init-local.js
+	cd program && ANCHOR_WALLET=$(DEVNET_WALLET) RPC_URL=https://api.devnet.solana.com node scripts/init-local.js
 
 # Минт без Metaplex metadata (localnet по умолчанию)
 mint:
@@ -55,7 +57,7 @@ mint-metaplex:
 
 # Минт на devnet после deploy-devnet/init-devnet
 mint-devnet:
-	cd program && RPC_URL=https://api.devnet.solana.com TOKEN_NAME="Devnet Metadata Token" TOKEN_SYMBOL=DMT TOKEN_URI=https://example.com/token.json node scripts/mint-local.js
+	cd program && ANCHOR_WALLET=$(DEVNET_WALLET) RPC_URL=https://api.devnet.solana.com TOKEN_NAME="Devnet Metadata Token" TOKEN_SYMBOL=DMT TOKEN_URI=https://example.com/token.json node scripts/mint-local.js
 
 # Localnet: деплой только оракула или только минтера (сначала make validator)
 deploy-oracle: build
