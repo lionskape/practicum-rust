@@ -6,14 +6,14 @@ Rust workspace for practicum assignments.
 
 ```text
 practicum-rust/
-├── crates/    # assignment crates
-│   └── analysis/
-├── docs/      # Nextra documentation
-└── xtask/     # build, test, and documentation automation
+├── crates/ # assignment projects
+├── docs/   # Nextra documentation
+└── xtask/  # build, test, and documentation automation
 ```
 
-Workspace crates are registered in the root `Cargo.toml`. New assignments should be added under
-`crates/`.
+The root Cargo workspace currently contains only the `xtask` crate. Some assignments, such as
+`crates/mini-launchpad`, are kept as standalone nested projects because they have their own
+Rust/Node/Solana toolchains and Makefile flow.
 
 ## Commands
 
